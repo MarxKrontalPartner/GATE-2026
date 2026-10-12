@@ -1,0 +1,24 @@
+{
+  "name": "gate-startpunkt",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "App"
+  ],
+  "scripts": {
+    "dev": "npm run app:tauri:dev",
+    "dev:web": "npm run app:dev",
+    "check": "npm run app:check && npm run server:check",
+    "app:dev": "npm --workspace App run dev",
+    "app:build": "npm --workspace App run build",
+    "app:check": "npm --workspace App run build && npm --workspace App run lint && npm --workspace App run test",
+    "app:tauri": "npm --workspace App run tauri",
+    "app:tauri:dev": "npm --workspace App run tauri dev",
+    "app:tauri:build": "npm --workspace App run tauri build",
+    "server:install": "cd Server && uv sync",
+    "server:dev": "cd Server && uv run python manage.py runserver 127.0.0.1:8000",
+    "server:migrate": "cd Server && uv run python manage.py migrate",
+    "server:seed": "cd Server && uv run python manage.py seed_bauwerksdiagnostik",
+    "server:check": "cd Server && uv run python manage.py check && uv run python manage.py makemigrations --check --dry-run && uv run pytest -q"
+  }
+}

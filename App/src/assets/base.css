@@ -1,0 +1,82 @@
+/* color palette from <https://github.com/vuejs/theme> */
+
+:root {
+  --corp-logo-light-blue: #42c0eb;
+  --corp-logo-dark-blue: #004972;
+  --corp-light-blue: #12a5e2;
+  --corp-dark-blue: #074057;
+  --corp-blue-gray: #3e86a3;
+  --corp-light-gray: #a4a5a6;
+  --corp-dark-gray: #555658;
+  --corp-light-red: #c51f3d;
+  --corp-dark-red: #640d1d;
+  --corp-green: #a39c0e;
+
+  --light-blue-gray: #8da5bb;
+  --blue-gray: #5f83a6;
+  --white: #ffffff;
+
+  --fs-regular: 1.25rem;
+}
+
+/* Set core body defaults */
+body {
+  /* text-rendering: optimizeSpeed; */
+  font-family: 'Montserrat', Arial, Helvetica, sans-serif;
+  font-display: fallback;
+  color: var(--corp-logo-dark-blue);
+}
+
+input {
+  /* fixes user agent overwriting color, even though it's set on the body */
+  color: var(--corp-logo-dark-blue);
+}
+/* Make images easier to work with */
+img,
+picture {
+  max-width: 100%;
+  display: block;
+}
+
+main {
+  height: 100%;
+  width: 100%;
+}
+
+/* Remove all animations, transitions and smooth scroll for people that prefer not to see them */
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+   scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* Montserrat is bundled as the application font. */
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/Montserrat/Montserrat-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("/fonts/Montserrat/Montserrat-Italic-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}

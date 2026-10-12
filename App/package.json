@@ -1,0 +1,40 @@
+{
+  "name": "gate-startpunkt-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "type-check": "vue-tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --config .prettierrc --write \"src/**/*.{ts,vue}\" \"tests/**/*.ts\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mdi/js": "^7.4.47",
+    "@tanstack/vue-query": "^5.92.5",
+    "@tauri-apps/api": "^2",
+    "pinia": "^3.0.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.6.4",
+    "vuetify": "^3.10.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^26.0.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/eslint-config-prettier": "^10.2.0",
+    "@vue/eslint-config-typescript": "^14.5.1",
+    "eslint": "^9.23.0",
+    "eslint-plugin-vue": "^10.0.0",
+    "prettier": "^3.6.2",
+    "sass-embedded": "^1.86.3",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^2.1.10"
+  }
+}

@@ -1,0 +1,6 @@
+@use 'vuetify' with (
+    $body-font-family: ('Montserrat', Arial, Helvetica, sans-serif)
+);
+html {
+    overflow-y: auto;  // scroll is default for some reason
+}
