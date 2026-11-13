@@ -39,6 +39,16 @@
               <v-icon :icon="mdiThemeLightDark" color="secondary" />
             </template>
           </v-list-item>
+          <!-- Logout -->
+          <v-list-item
+            title="Abmelden"
+            value="logout"
+            @click="handleLogout"
+          >
+            <template v-slot:prepend>
+              <v-icon :icon="mdiLogout" color="secondary" />
+            </template>
+          </v-list-item>
         </v-list>
       </v-menu>
       <v-tooltip
@@ -51,9 +61,11 @@
 </template>
 
 <script lang="ts" setup>
-import { mdiAccount, mdiHome, mdiThemeLightDark, mdiMenu } from '@mdi/js';
+import { mdiAccount, mdiHome, mdiThemeLightDark, mdiMenu, mdiLogout } from '@mdi/js';
 import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
 import { useTheme } from 'vuetify';
+import { logout } from '@/utils/auth';
 
 import MKPLogoWebsite from '@/assets/mkp/MKP_Logo_Webseite.svg';
 import MKPLogoWebsiteInvers from '@/assets/mkp/MKP_Logo_Webseite_invers.svg';
@@ -64,6 +76,12 @@ const props = defineProps<{
 }>();
 
 const theme = useTheme()
+const router = useRouter();
+
+async function handleLogout() {
+  await logout();
+  await router.push({ name: 'login' });
+}
 
 const shouldShowLogo = ref(true);
 

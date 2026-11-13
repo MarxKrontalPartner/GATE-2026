@@ -2,6 +2,7 @@ import SideDrawerBwd from '@/components/bwd/SideDrawer.vue';
 import SideDrawerProjektauswahl from '@/components/projektauswahl/SideDrawer.vue';
 import { replaceLettersWithUmlauts, replaceWithDisplayName } from '@/utils/StringSanitizers';
 import { createRouter, createWebHistory } from 'vue-router';
+import { isLoggedIn } from '@/utils/auth';
 
 
 const router = createRouter({
@@ -11,6 +12,11 @@ const router = createRouter({
     return { top: 0 }
   },
   routes: [
+    { path: '/login', 
+      name: 'login', 
+      component: () => import('@/views/LoginView.vue'), 
+      meta: { public: true } 
+    },
     {
       path: '/',
       name: 'index',
@@ -51,6 +57,12 @@ const router = createRouter({
 
   ]
 })
+
+router.beforeEach(async (to) => {
+  if (to.meta.public) return true;
+  const loggedIn = await isLoggedIn();
+  return loggedIn ? true : { name: 'login' };
+});
 
 router.beforeEach(async (to) => {
   // Set title of the document
