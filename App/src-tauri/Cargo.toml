@@ -19,3 +19,19 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+
+# SeaORM 2.0 uses SQLx 0.9 for SQLite persistence.
+sea-orm = { version = "=2.0.4", default-features = false, features = [
+    "sqlx-sqlite",
+    "runtime-tokio",
+    "macros",
+    "with-chrono",
+    "with-json",
+] }
+sqlx = { version = "=0.9.0", default-features = false, features = [
+    "sqlite",
+    "runtime-tokio",
+    "macros",
+    "migrate",
+] }
+serde = { version = "1", features = ["derive"] }
