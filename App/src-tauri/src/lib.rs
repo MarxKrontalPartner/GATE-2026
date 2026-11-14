@@ -1,6 +1,9 @@
-// GATE-MKP Step 1: client database + SeaORM; no Vue API changes yet.
+// GATE-MKP offline client. Server/Django remains untouched.
 mod db;
 mod entities;
+mod services;
+mod repositories;
+mod commands;
 
 use tauri::Manager;
 
@@ -13,6 +16,18 @@ pub fn run() {
             app.manage(db);
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            commands::local_data::local_list,
+            commands::local_data::local_get,
+            commands::local_data::local_create,
+            commands::local_data::local_update,
+            commands::local_data::local_delete,
+            commands::local_data::local_import,
+            commands::local_data::local_import_links,
+            commands::local_data::local_save_media,
+            commands::local_data::local_attach_media,
+            commands::local_data::local_read_media,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

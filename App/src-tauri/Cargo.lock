@@ -1399,11 +1399,15 @@ dependencies = [
 name = "gate-startpunkt-app"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "chrono",
  "sea-orm",
  "serde",
+ "serde_json",
  "sqlx",
  "tauri",
  "tauri-build",
+ "uuid",
 ]
 
 [[package]]

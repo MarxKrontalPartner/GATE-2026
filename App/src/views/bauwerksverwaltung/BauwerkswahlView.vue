@@ -19,6 +19,10 @@
       </v-autocomplete>
     </v-col>
   </v-row>
+  <v-row v-if="canPrepareOffline" class="mx-4 align-center">
+    <v-btn size="small" :loading="preparing" @click="prepareLocal">Daten für Offline-Arbeit vorbereiten</v-btn>
+    <span class="ms-3 text-caption" role="status">{{ prepareMessage }}</span>
+  </v-row>
   <FeedbackFeedComponent />
   <v-container class="w-75">
     <v-row>
@@ -42,6 +46,8 @@
 
 <script setup lang="ts">
 import { mdiMagnify, mdiClose } from '@mdi/js';
+import { isTauri } from '@tauri-apps/api/core';
+import { prepareOfflineData } from '@/services/offlinePreparation';
 import { storeToRefs } from 'pinia';
 import { ref, onMounted, watch, type Ref } from "vue";
 
@@ -52,6 +58,24 @@ import router from '@/router';
 import { getBauwerkeListWithFeedback } from '@/utils/FeedbackHooks';
 import { useProjekte } from '@/composables/projekte';
 import { useBauwerkStore } from '@/store/BauwerkStore';
+
+const canPrepareOffline = isTauri();
+const preparing = ref(false);
+const prepareMessage = ref('');
+async function prepareLocal() {
+  preparing.value = true;
+  prepareMessage.value = '';
+  try {
+    const summary = await prepareOfflineData();
+    prepareMessage.value = `Lokal gespeichert: ${summary.records} Datensätze, ${summary.files} Dateien.`;
+    await refreshProjektList();
+    await getBauwerkeListWithFeedback();
+  } catch (error) {
+    prepareMessage.value = `Vorbereitung fehlgeschlagen: ${String(error)}`;
+  } finally {
+    preparing.value = false;
+  }
+}
 
 const { projektList, refreshProjektList } = useProjekte();
 const bauwerkStore = useBauwerkStore();

@@ -1,3 +1,6 @@
+import { listLocal, getLocal, createLocal, updateLocal, deleteLocal, saveLocalMedia, localMediaBlobUrl, localMode } from '@/repositories/localDomainRepository';
+import { getAllKnownMethods } from '@/utils/UntersuchungsverfahrenRegistry';
+
 import router from '@/router/index';
 import { useBauwerkStore } from '@/store/BauwerkStore';
 import type {
@@ -25,6 +28,22 @@ const DIAGNOSTIK_SUBPATH = 'bwd';
 type IMapping = {
   [key: string]: string;
 };
+async function localUvGrouped(art: string, bauwerk?: string, projekt?: string, types?: string[]): Promise<any> {
+  const methods = getAllKnownMethods().filter(method =>
+    (art === 'all' || method.art === art) &&
+    (!types?.length || types.some(t => getMethodApiName(t).toLowerCase() === method.apiName.toLowerCase()))
+  );
+  const byCategory: Record<string, Record<string, any[]>> = {};
+  for (const method of methods) {
+    const filters: Record<string, string> = {};
+    if (bauwerk) filters.bauwerk = String(bauwerk);
+    if (projekt) filters.projekt = String(projekt);
+    const rows = await listLocal(method.apiName, filters);
+    (byCategory[method.art] ??= {})[method.apiName] = rows;
+  }
+  return byCategory;
+}
+
 class ApiConnector {
   GET = 'GET';
   POST = 'POST';
@@ -133,6 +152,7 @@ class ApiConnector {
     resource: string,
     queryParams: IMapping = {},
   ): Promise<any[]> {
+    if (localMode()) return listLocal(resource);
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${resource}/` +
       this.makeQueryParams(true, queryParams),
@@ -159,6 +179,19 @@ class ApiConnector {
       string | number | boolean | null | undefined
     > = {},
   ): Promise<T[]> {
+    if (localMode()) {
+      if (resource === 'ImplementedUntersuchungsverfahren') {
+        const methods = getAllKnownMethods();
+        return {
+          VorOrtUntersuchung: methods.filter(m => m.art === 'VorOrtUntersuchung').map(m => m.apiName),
+          Laboruntersuchung: methods.filter(m => m.art === 'Laboruntersuchung').map(m => m.apiName),
+        } as unknown as T[];
+      }
+      const filters: Record<string, string | number> = {};
+      if (bauwerk) filters.bauwerk = bauwerk;
+      if (projekt) filters.projekt = projekt;
+      return listLocal<T>(resource, filters);
+    }
     const queryParams: IMapping = {};
 
     if (projekt) {
@@ -196,6 +229,7 @@ class ApiConnector {
     resource: string,
     id: number | string,
   ): Promise<T> {
+    if (localMode()) return getLocal<T>(resource, id);
     const queryParams: IMapping = {};
 
     const response = await fetch(
@@ -216,6 +250,7 @@ class ApiConnector {
   }
 
   async getResource(resource: string, id: number | string): Promise<any> {
+    if (localMode()) return getLocal(resource, id);
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${resource}/${id}/` +
       this.makeQueryParams(true),
@@ -234,6 +269,7 @@ class ApiConnector {
   }
 
   async getBauwerke(): Promise<IBauwerk[]> {
+    if (localMode()) return listLocal<IBauwerk>('Bauwerk');
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${BAUWERKE_ENDPOINT}/`,
       {
@@ -251,6 +287,7 @@ class ApiConnector {
   }
 
   async getProjekte(all = true): Promise<IProjekt[]> {
+    if (localMode()) return listLocal<IProjekt>('Projekt');
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${PROJEKTE_ENDPOINT}/` +
       this.makeQueryParams(!all),
@@ -269,6 +306,7 @@ class ApiConnector {
   }
 
   async getPersonen(all = true): Promise<IPerson[]> {
+    if (localMode()) return listLocal<IPerson>('Person');
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${PERSONEN_ENDPOINT}/` +
       this.makeQueryParams(!all),
@@ -287,6 +325,7 @@ class ApiConnector {
   }
 
   async getFirmen(all = true): Promise<IFirma[]> {
+    if (localMode()) return listLocal<IFirma>('Firma');
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${FIRMEN_ENDPOINT}/` +
       this.makeQueryParams(!all),
@@ -305,6 +344,7 @@ class ApiConnector {
   }
 
   async postResource(resource: string, data: object): Promise<object> {
+    if (localMode()) return createLocal(resource, data);
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${resource}/`,
       {
@@ -325,6 +365,7 @@ class ApiConnector {
     data: object,
     headers: any | undefined = undefined,
   ): Promise<any> {
+    if (localMode()) return createLocal(resource, data);
     if (headers === undefined) {
       headers = { 'Content-Type': 'application/json' };
     }
@@ -346,6 +387,7 @@ class ApiConnector {
     data: object,
     id: number,
   ): Promise<Response> {
+    if (localMode()) return (await updateLocal(resource, id, data)) as unknown as Response;
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${resource}/${id}/`,
       {
@@ -367,6 +409,7 @@ class ApiConnector {
     data: object,
     id: number,
   ): Promise<object> {
+    if (localMode()) return updateLocal(resource, id, data);
     const response = await fetch(
       `${API_BASE_URL}/${subpath}/${resource}/${id}/`,
       {
@@ -387,6 +430,7 @@ class ApiConnector {
     resource: string,
     id: number,
   ): Promise<void> {
+    if (localMode()) return deleteLocal(resource, id);
     const response = await fetch(
       `${API_BASE_URL}/${subpath}/${resource}/${id}/`,
       {
@@ -402,6 +446,7 @@ class ApiConnector {
     }
   }
   async deleteResource(resource: string, id: number): Promise<void> {
+    if (localMode()) return deleteLocal(resource, id);
     const response = await fetch(
       `${API_BASE_URL}/${ASSETVERWALTUNG_SUBPATH}/${resource}/${id}/`,
       {
@@ -419,6 +464,7 @@ class ApiConnector {
 
   // Media helpers. hochgeladen_von is not sent (the backend falls back to "Anonymous").
   async getMediaContentAsBlobURL(id: number): Promise<string> {
+    if (localMode()) return localMediaBlobUrl(id);
     const response = await fetch(`${API_BASE_URL}/bwd/Media/${id}/content/`, {
       method: 'GET',
       headers: await this.makeHeaders(),
@@ -440,6 +486,10 @@ class ApiConnector {
   }
 
   async uploadMedia(subpath: string, data: any): Promise<any> {
+    if (localMode()) {
+      if (!(data.datei instanceof Blob)) throw new Error('Please choose a file to save locally');
+      return saveLocalMedia(data, data.datei);
+    }
     const formData = new FormData();
     // Füge alle Daten zum FormData hinzu
     formData.append('name', data.name);
@@ -469,6 +519,7 @@ class ApiConnector {
   }
 
   async deleteMedia(id: number): Promise<boolean> {
+    if (localMode()) { await deleteLocal('Media', id); return true; }
     const response = await fetch(`${API_BASE_URL}/bwd/Media/${id}/`, {
       method: 'DELETE',
       headers: await this.makeHeaders(),
@@ -482,6 +533,7 @@ class ApiConnector {
    * Get detailed information for a media item
    */
   async getMediaDetails(app: string, mediaId: number | string): Promise<any> {
+    if (localMode()) return getLocal('Media', mediaId);
     const response = await fetch(`${API_BASE_URL}/${app}/Media/${mediaId}/`, {
       method: this.GET,
       headers: await this.makeHeaders(),
@@ -501,6 +553,7 @@ class ApiConnector {
    */
   async getMediaBatch(ids: number[]): Promise<any[]> {
     if (!ids || ids.length === 0) return [];
+    if (localMode()) return Promise.all(ids.map(id => getLocal('Media', id)));
     const response = await fetch(`${API_BASE_URL}/bwd/Media/batch/`, {
       method: this.POST,
       body: JSON.stringify({ ids }),
@@ -524,6 +577,7 @@ class ApiConnector {
     mediaId: number,
     data: any,
   ): Promise<any> {
+    if (localMode()) return updateLocal('Media', mediaId, data);
     const response = await fetch(`${API_BASE_URL}/${app}/Media/${mediaId}/`, {
       method: this.PATCH,
       body: JSON.stringify(data),
@@ -543,6 +597,11 @@ class ApiConnector {
    * Upload media with structure information
    */
   async uploadMediaWithStructureInfo(data: any): Promise<any> {
+    if (localMode()) return saveLocalMedia({
+      name: data.name ?? (data.file as File)?.name ?? '',
+      beschreibung: '', model_name: data.structure_type, model_pk: Number(data.structure_id),
+      bauwerk: Number(data.bauwerk), media_type: data.media_type,
+    }, data.file);
     const formData = new FormData();
     if (data.name) {
       formData.append('name', data.name);
@@ -572,6 +631,9 @@ class ApiConnector {
    * Upload multiple media files with structure information (batch upload)
    */
   async batchUploadMedia(data: any): Promise<any> {
+    if (localMode()) return Promise.all((data.files ?? []).map((file: File) =>
+      saveLocalMedia({ name: data.name ?? file.name, model_name: data.structure_type,
+        model_pk: Number(data.structure_id), bauwerk: Number(data.bauwerk), media_type: data.media_type }, file)));
     const formData = new FormData();
     formData.append('structure_type', data.structure_type);
     formData.append('structure_id', data.structure_id.toString());
@@ -619,6 +681,7 @@ class ApiConnector {
     utype: string,
     id: number,
   ): Promise<T> {
+    if (localMode()) return getLocal<T>(utype, id);
     const response = await fetch(
       `${API_BASE_URL}/${DIAGNOSTIK_SUBPATH}/Untersuchungsverfahren/${id}/?Untersuchung=${utype}`,
       {
@@ -650,6 +713,7 @@ class ApiConnector {
     id: number,
     data: any,
   ): Promise<any> {
+    if (localMode()) return updateLocal(utype, id, data);
     const response = await fetch(
       `${API_BASE_URL}/${DIAGNOSTIK_SUBPATH}/Untersuchungsverfahren/${id}/?Untersuchung=${utype}`,
       {
@@ -672,6 +736,7 @@ class ApiConnector {
    * GET list of a specific Untersuchungsverfahren type.
    */
   async getUntersuchungsverfahrenList<T>(utype: string): Promise<T[]> {
+    if (localMode()) return listLocal<T>(utype);
     const url = new URL(`${API_BASE_URL}/${DIAGNOSTIK_SUBPATH}/Untersuchungsverfahren/`);
     url.searchParams.append('Untersuchung', utype);
     const routeBauwerkId = router.currentRoute.value.params.bauwerkId;
@@ -693,6 +758,7 @@ class ApiConnector {
    * POST (create) a new Untersuchungsverfahren of given type.
    */
   async postUntersuchungsverfahren<T>(utype: string, data: object): Promise<T> {
+    if (localMode()) return createLocal<T>(utype, data);
     const url = new URL(`${API_BASE_URL}/${DIAGNOSTIK_SUBPATH}/Untersuchungsverfahren/`);
     url.searchParams.append('Untersuchung', utype);
     const response = await fetch(url.toString(), {
@@ -714,6 +780,7 @@ class ApiConnector {
     id: number | string,
     data: object,
   ): Promise<T> {
+    if (localMode()) return updateLocal<T>(utype, Number(id), data);
     const url = new URL(`${API_BASE_URL}/${DIAGNOSTIK_SUBPATH}/Untersuchungsverfahren/${id}/`);
     url.searchParams.append('Untersuchung', utype);
     const response = await fetch(url.toString(), {
@@ -734,6 +801,7 @@ class ApiConnector {
     utype: string,
     id: number | string,
   ): Promise<void> {
+    if (localMode()) return deleteLocal(utype, Number(id));
     const url = new URL(`${API_BASE_URL}/${DIAGNOSTIK_SUBPATH}/Untersuchungsverfahren/${id}/`);
     url.searchParams.append('Untersuchung', utype);
     const response = await fetch(url.toString(), {
@@ -762,6 +830,7 @@ class ApiConnector {
       projekt?: string,
       filters: object = {},
     ): Promise<any> {
+      if (localMode()) return localUvGrouped(art, bauwerk, projekt);
       // Compose query params
       const params: any = { ...filters };
       if (bauwerk) params.bauwerk = bauwerk;
@@ -787,6 +856,7 @@ class ApiConnector {
       projekt?: string,
       selectedUntersuchungsverfahrenOptions?: string[],
     ): Promise<any> {
+      if (localMode()) return localUvGrouped('VorOrtUntersuchung', bauwerk, projekt, selectedUntersuchungsverfahrenOptions);
       const url = new URL('api/bwd/Untersuchungsverfahren/', API_BASE_URL);
       url.searchParams.append('format', 'json');
       url.searchParams.append('art', 'VorOrtUntersuchung');
@@ -821,6 +891,7 @@ class ApiConnector {
       projekt?: string,
       selectedUntersuchungsverfahrenOptions?: string[],
     ): Promise<any> {
+      if (localMode()) return localUvGrouped('Laboruntersuchung', bauwerk, projekt, selectedUntersuchungsverfahrenOptions);
       const url = new URL('api/bwd/Untersuchungsverfahren/', API_BASE_URL);
       url.searchParams.append('format', 'json');
       url.searchParams.append('art', 'Laboruntersuchung');
@@ -862,6 +933,7 @@ class ApiConnector {
       untersuchung: string,
       art?: string,
     ): Promise<any> {
+      if (localMode()) return getLocal(untersuchung, id);
       const url = new URL(
         `api/bwd/Untersuchungsverfahren/${id}/`,
         API_BASE_URL,
@@ -890,6 +962,7 @@ class ApiConnector {
       id: number,
       untersuchung: string,
     ): Promise<void> {
+      if (localMode()) return deleteLocal(untersuchung, id);
       const url = new URL(
         `api/bwd/Untersuchungsverfahren/${id}/`,
         API_BASE_URL,
@@ -913,6 +986,7 @@ class ApiConnector {
      * @throws {Error} Throws an error if the request fails.
      */
     async fetchMaterialData(): Promise<any> {
+      if (localMode()) return listLocal('Material');
       const url = new URL(`api/bwd/Material/`, API_BASE_URL);
 
       const response = await fetch(url.toString(), {
@@ -931,6 +1005,7 @@ class ApiConnector {
      * @throws {Error} Throws an error if there is an issue with the fetch request.
      */
     async fetchBearbeiterData(): Promise<any> {
+      if (localMode()) return listLocal('Person');
       const url = new URL(`api/bwd/Bearbeiter/`, API_BASE_URL);
 
       const response = await fetch(url.toString(), {
@@ -950,6 +1025,7 @@ class ApiConnector {
      * @throws {Error} Throws an error if the data could not be loaded.
      */
     async fetchBohrkernData(id: number): Promise<any> {
+      if (localMode()) return getLocal('Bohrkern', id);
       const url = new URL(`api/bwd/Bohrkern/${id}/`, API_BASE_URL);
       const response = await fetch(url.toString(), {
         headers: await apiConnector.makeHeaders(),
@@ -960,6 +1036,7 @@ class ApiConnector {
       return response.json();
     },
     async fetchProbeData(id: number): Promise<any> {
+      if (localMode()) return getLocal('Probe', id);
       const url = new URL(`api/bwd/Probe/${id}/`, API_BASE_URL);
       const response = await fetch(url.toString(), {
         headers: await apiConnector.makeHeaders(),
@@ -971,6 +1048,7 @@ class ApiConnector {
     },
 
     async createUntersuchung(untersuchung: string, data: any): Promise<any> {
+      if (localMode()) return createLocal(untersuchung, data);
       const url = new URL(`api/bwd/Untersuchungsverfahren/`, API_BASE_URL);
 
       data.type = getMethodApiName(untersuchung);
@@ -993,6 +1071,7 @@ class ApiConnector {
       untersuchung: string,
       data: any,
     ): Promise<any> {
+      if (localMode()) return updateLocal(untersuchung, id, data);
       const url = new URL(
         `api/bwd/Untersuchungsverfahren/${id}/`,
         API_BASE_URL,
