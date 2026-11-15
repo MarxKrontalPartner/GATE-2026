@@ -1,73 +1,65 @@
-# Login mit Keycloak
+# Login with Keycloak
 
-Die Anmeldung läuft über [Keycloak](https://www.keycloak.org/). Django stellt selbst keine
-Tokens mehr aus (simplejwt wurde ersetzt), sondern
+Login is handled by [Keycloak](https://www.keycloak.org/). Django no longer issues
+tokens itself (simplejwt has been replaced). Instead it
 
-1. leitet Benutzername und Passwort an Keycloak weiter und gibt die Tokens an die App zurück, und
-2. prüft bei jeder API-Anfrage das Keycloak-Token im `Authorization`-Header.
+1. forwards the username and password to Keycloak and returns the tokens to the app, and
+2. checks the Keycloak token in the `Authorization` header on every API request.
 
-```
-App ── {username, password} ──► Django /api/token/ ── grant_type=password ──► Keycloak
-App ◄────── {access, refresh} ── Django ◄────── access_token, refresh_token ── Keycloak
 
-App ── Authorization: Bearer <access> ──► Django API
-                                           └─ prüft Signatur mit Keycloaks öffentlichem
-                                              Schlüssel (/certs, wird zwischengespeichert)
-```
+The app (`App/src-tauri/src/login.rs`, `App/src/utils/auth.ts`) only talks to Django and
+doesn't need to know about Keycloak.
 
-Die App (`App/src-tauri/src/login.rs`, `App/src/utils/auth.ts`) spricht nur mit Django und
-muss Keycloak nicht kennen.
+## Prerequisites
 
-## Voraussetzungen
+- [Docker](https://www.docker.com/products/docker-desktop/) (on macOS: Docker Desktop)
+- Backend set up as described in the [main README](../README.md)
 
-- [Docker](https://www.docker.com/products/docker-desktop/) (unter macOS: Docker Desktop)
-- Backend wie im [Haupt-README](../README.md) eingerichtet
-
-## 1. Keycloak starten
+## 1. Start Keycloak
 
 ```bash
 docker run -p 8080:8080 -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:26.0 start-dev
 ```
 
-Admin-Konsole: <http://localhost:8080> (Login `admin` / `admin`).
+Admin console: <http://localhost:8080> (login `admin` / `admin`).
 
-`start-dev` ist nur für die lokale Entwicklung gedacht: Daten liegen im Container und sind
-nach dem Löschen des Containers weg.
+`start-dev` is meant for local development only: data is stored inside the container and is
+lost when the container is deleted.
 
-## 2. Keycloak einrichten
+## 2. Set up Keycloak
 
-Alle Schritte im Realm **`MKP`** ausführen (Auswahl oben links, **nicht** `master`).
+Do all steps in the **`MKP`** realm (selector at the top left, **not** `master`).
 
 ### Realm
 
-*Create realm* → Name `MKP`. Der Name ist case-sensitiv und steht so in allen URLs.
+*Create realm* → name `MKP`. The name is case-sensitive and appears exactly like this in all URLs.
 
 ### Client
 
 *Clients → Create client*:
 
-| Einstellung | Wert |
+| Setting | Value |
 |---|---|
 | Client ID | `mkp-app` |
-| Client authentication | **Aus** (öffentlicher Client, die App kann kein Secret geheim halten) |
-| Direct access grants | **An** (erlaubt die Anmeldung mit Benutzername und Passwort) |
-| Standard flow | darf an bleiben, wird nicht genutzt |
+| Client authentication | **Off** (public client: the app can't keep a secret) |
+| Direct access grants | **On** (allows login with username and password) |
+| Standard flow | can stay on, not used |
 | Web origins | `http://localhost:1420` |
 
-### Benutzer
+### User
 
-*Users → Add user* → Benutzername vergeben, dann im Tab *Credentials* ein Passwort setzen
-mit **Temporary = Aus**. Unter *Required user actions* darf nichts eingetragen sein.
+*Users → Add user* → choose a username, then on the *Credentials* tab set a password
+with **Temporary = Off**. *Required user actions* must be empty.
 
-### Token-Laufzeiten (optional)
+### Token lifetimes (optional)
 
-| Ort | Einstellung | Standard |
+| Location | Setting | Default |
 |---|---|---|
-| *Realm settings → Tokens* | Access Token Lifespan | 5 Minuten |
-| *Realm settings → Sessions* | SSO Session Idle (≈ Laufzeit des Refresh-Tokens) | 30 Minuten |
-| *Realm settings → Sessions* | SSO Session Max | 10 Stunden |
+| *Realm settings → Tokens* | Access Token Lifespan | 5 minutes |
+| *Realm settings → Sessions* | SSO Session Idle (≈ lifetime of the refresh token) | 30 minutes |
+| *Realm settings → Sessions* | SSO Session Max | 10 hours |
 
-## 3. Django-Konfiguration
+## 3. Django configuration
 
 In `Server/core/settings/extendable/base.py`:
 
@@ -85,117 +77,116 @@ REST_FRAMEWORK = {
 }
 ```
 
-Abhängigkeiten (bereits in `Server/pyproject.toml`): `requests` (Aufrufe an Keycloak) und
-`pyjwt[crypto]` (Prüfung der RS256-Signatur).
+Dependencies (already in `Server/pyproject.toml`): `requests` (calls to Keycloak) and
+`pyjwt[crypto]` (checking the RS256 signature).
 
-### Beteiligte Dateien
+### Files involved
 
-| Datei | Aufgabe |
+| File | Purpose |
 |---|---|
-| `Server/core/authentication/keycloak.py` | `KeycloakAuthentication` (Token-Prüfung) und `keycloak_token()` (Aufruf von Keycloaks `/token`) |
-| `Server/core/authentication/views.py` | `TokenView` und `TokenRefreshView` |
-| `Server/core/urls.py` | Routen `/api/token/` und `/api/token/refresh/` |
+| `Server/core/authentication/keycloak.py` | `KeycloakAuthentication` (token check) and `keycloak_token()` (calls Keycloak's `/token`) |
+| `Server/core/authentication/views.py` | `TokenView` and `TokenRefreshView` |
+| `Server/core/urls.py` | routes `/api/token/` and `/api/token/refresh/` |
 
-## 4. Endpunkte
+## 4. Endpoints
 
-### `POST /api/token/` – Anmelden
+### `POST /api/token/`: log in
 
 ```json
-{ "username": "anna", "password": "geheim" }
+{ "username": "username", "password": "secret" }
 ```
 
-| Status | Antwort |
+| Status | Response |
 |---|---|
 | 200 | `{ "access": "...", "refresh": "..." }` |
-| 400 | Benutzername oder Passwort fehlt |
-| 401 | Benutzername oder Passwort falsch |
+| 400 | username or password missing |
+| 401 | wrong username or password |
 
-### `POST /api/token/refresh/` – Access-Token erneuern
+### `POST /api/token/refresh/`: renew the access token
 
 ```json
 { "refresh": "..." }
 ```
 
-| Status | Antwort |
+| Status | Response |
 |---|---|
-| 200 | `{ "access": "...", "refresh": "..." }` – **neues** Refresh-Token, das alte verfällt früher |
-| 401 | Refresh-Token ungültig oder abgelaufen → neu anmelden |
+| 200 | `{ "access": "...", "refresh": "..." }` (a **new** refresh token; the old one expires sooner) |
+| 401 | refresh token invalid or expired → log in again |
 
-### Geschützte API-Aufrufe
+### Protected API calls
 
-Header `Authorization: Bearer <access>`. Bei ungültigem oder abgelaufenem Token antwortet
-Django mit **401**; die App holt sich dann über `/api/token/refresh/` ein neues Token.
+Header `Authorization: Bearer <access>`. If the token is invalid or expired, Django answers
+with **401**, and the app then gets a new token from `/api/token/refresh/`.
 
-## 5. Wie die Token-Prüfung funktioniert
+## 5. How the token check works
 
-`KeycloakAuthentication` (in `keycloak.py`) prüft bei jeder Anfrage:
+`KeycloakAuthentication` (in `keycloak.py`) checks on every request:
 
-1. **Signatur** – mit dem öffentlichen Schlüssel aus
-   `http://localhost:8080/realms/MKP/protocol/openid-connect/certs`. Die Schlüssel werden
-   einmal geladen und zwischengespeichert; Django ruft Keycloak dafür nicht bei jeder Anfrage auf.
-2. **`exp`** – das Token ist nicht abgelaufen.
-3. **`iss`** – das Token stammt aus `http://localhost:8080/realms/MKP`.
-4. **`azp`** – das Token wurde für den Client `mkp-app` ausgestellt.
+1. **Signature**: using the public key from
+   `http://localhost:8080/realms/MKP/protocol/openid-connect/certs`. The keys are loaded
+   once and cached, so Django doesn't call Keycloak on every request.
+2. **`exp`**: the token hasn't expired.
+3. **`iss`**: the token comes from `http://localhost:8080/realms/MKP`.
+4. **`azp`**: the token was issued for the client `mkp-app`.
 
-Danach wird der Django-Benutzer anhand von `preferred_username` gesucht bzw. beim ersten
-Aufruf angelegt. Passwörter liegen nur in Keycloak.
+After that, the Django user is looked up by `preferred_username`, or created on the first
+call. Passwords are stored only in Keycloak.
 
-## 6. Testen
+## 6. Testing
 
-Keycloak erreichbar?
+Is Keycloak reachable?
 
 ```bash
 curl http://localhost:8080/realms/MKP/.well-known/openid-configuration
 ```
 
-Token direkt bei Keycloak holen (Body als Formular, **nicht** JSON):
+Get a token directly from Keycloak (body as form data, **not** JSON):
 
 ```bash
-curl -X POST http://localhost:8080/realms/MKP/protocol/openid-connect/token -d grant_type=password -d client_id=mkp-app -d username=anna -d password=geheim -d scope=openid
+curl -X POST http://localhost:8080/realms/MKP/protocol/openid-connect/token -d grant_type=password -d client_id=mkp-app -d username=anna -d password=secret -d scope=openid
 ```
 
-Token über Django holen (JSON):
+Get a token through Django (JSON):
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/token/ -H "Content-Type: application/json" -d '{"username": "anna", "password": "geheim"}'
+curl -X POST http://127.0.0.1:8000/api/token/ -H "Content-Type: application/json" -d '{"username": "anna", "password": "secret"}'
 ```
 
-Geschützten Endpunkt mit dem Token aufrufen:
+Call a protected endpoint with the token:
 
 ```bash
 curl http://127.0.0.1:8000/api/bauwerk/ -H "Authorization: Bearer <access>"
 ```
 
-> Hinweis: `Server/core/settings/local.py` entfernt lokal die Berechtigung `IsAuthenticated`.
-> Die meisten Endpunkte antworten dort auch **ohne** Token. Zum Testen der Anmeldung einen
-> Endpunkt verwenden, der `permission_classes = [IsAuthenticated]` selbst setzt.
+> Note: `Server/core/settings/local.py` removes the `IsAuthenticated` permission locally,
+> so most endpoints there also answer **without** a token. To test the login, use an
+> endpoint that sets `permission_classes = [IsAuthenticated]` itself.
 
-## 7. Fehlerbehebung
+## 7. Troubleshooting
 
-| Fehler | Ursache / Lösung |
+| Error | Cause / fix |
 |---|---|
-| `Realm does not exist` | Realm-Name falsch geschrieben – es heißt `MKP` (Großbuchstaben). |
-| 404 auf `.../protocol/openid-connect` | Das ist nur der Anfang der URLs. Immer `/token`, `/certs`, `/userinfo` oder `/logout` anhängen. |
-| `invalid_client` | Client ID falsch oder *Client authentication* ist an. |
-| `unauthorized_client` | *Direct access grants* ist beim Client aus. |
-| `invalid_grant` – „Invalid user credentials" | Benutzername oder Passwort falsch. |
-| `invalid_grant` – „Account is not fully set up" | Temporäres Passwort oder offene *Required user actions* beim Benutzer. |
-| „Missing form parameter: grant_type" | Body wurde als JSON statt als Formular an Keycloak geschickt. |
-| Django: `Invalid token: Invalid issuer` | `localhost` und `127.0.0.1` gelten als verschieden. Das Token muss über dieselbe Adresse geholt werden, die in `KEYCLOAK_URL` steht. |
-| Django: `Connection refused` beim Laden der Schlüssel | Keycloak läuft nicht (`docker ps`). |
-| App wird nach ca. 30 Minuten abgemeldet | Siehe „Bekannte Einschränkungen". |
+| `Realm does not exist` | Realm name misspelled. It's `MKP` (capital letters). |
+| 404 on `.../protocol/openid-connect` | That's only the start of the URLs. Always add `/token`, `/certs`, `/userinfo` or `/logout`. |
+| `invalid_client` | Wrong client ID, or *Client authentication* is on. |
+| `unauthorized_client` | *Direct access grants* is off for the client. |
+| `invalid_grant`: "Invalid user credentials" | Wrong username or password. |
+| `invalid_grant`: "Account is not fully set up" | Temporary password or pending *Required user actions* on the user. |
+| "Missing form parameter: grant_type" | The body was sent to Keycloak as JSON instead of form data. |
+| Django: `Invalid token: Invalid issuer` | `localhost` and `127.0.0.1` count as different. The token must be fetched through the same address that's in `KEYCLOAK_URL`. |
+| Django: `Connection refused` while loading keys | Keycloak isn't running (`docker ps`). |
+| The app logs out after about 30 minutes | See "Known limitations". |
 
-## Bekannte Einschränkungen
+## Known limitations
 
-- **Neues Refresh-Token wird in der App noch nicht gespeichert.** Keycloak gibt bei jedem
-  Refresh ein neues Refresh-Token zurück. `login.rs` (`struct Refreshed`) und
-  `auth.ts` (`browserRefresh`) übernehmen bisher nur das Access-Token. Folge: Nach Ablauf
-  des ersten Refresh-Tokens (Standard 30 Minuten) wird der Benutzer abgemeldet, auch wenn
-  er aktiv arbeitet.
-- **Kein Logout bei Keycloak.** Die App verwirft beim Abmelden nur ihre Tokens; die Sitzung
-  in Keycloak läuft bis zum Timeout weiter.
-- **Passwort-Login (Direct Access Grant).** Das Passwort läuft durch App und Django;
-  Zwei-Faktor-Anmeldung und Single Sign-On funktionieren damit nicht. Für diese Funktionen
-  wäre der Browser-Login (Authorization Code mit PKCE) nötig.
-- **Konfiguration fest im Code.** `KEYCLOAK_URL`, `KEYCLOAK_REALM` und `KEYCLOAK_CLIENT_ID`
-  stehen in `base.py` und müssen für andere Umgebungen angepasst werden.
+- **The app doesn't save the new refresh token yet.** Keycloak returns a new refresh token
+  on every refresh. `login.rs` (`struct Refreshed`) and `auth.ts` (`browserRefresh`)
+  currently keep only the access token. As a result, the user is logged out when the first
+  refresh token expires (30 minutes by default), even while actively working.
+- **No logout in Keycloak.** On logout the app only discards its tokens; the Keycloak
+  session stays open until it times out.
+- **Password login (Direct Access Grant).** The password passes through the app and Django,
+  so two-factor login and single sign-on don't work. Those would need the browser login
+  (Authorization Code with PKCE).
+- **Configuration is hard-coded.** `KEYCLOAK_URL`, `KEYCLOAK_REALM` and `KEYCLOAK_CLIENT_ID`
+  are set in `base.py` and must be changed for other environments.
