@@ -11,6 +11,7 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from core.authentication.views import TokenRefreshView, TokenView
 
 
 @api_view(["GET"])
@@ -29,8 +30,12 @@ urlpatterns = [
     path("", api_root, name="api_root"),
     path("api/", include("core.assetverwaltung.urls")),
     path("api/bwd/", include("core.bauwerksdiagnostik.urls")),
+    path("api/auth/", include("core.authentication.urls")),
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
     path("admin/", admin.site.urls),
+
+    path("api/token/", TokenView.as_view()),
+    path("api/token/refresh/", TokenRefreshView.as_view()),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

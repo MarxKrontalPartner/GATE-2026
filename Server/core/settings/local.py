@@ -22,3 +22,5 @@ if default_perm_classes := REST_FRAMEWORK.get("DEFAULT_PERMISSION_CLASSES"):
     for permission_class in DISABLE_DEFAULT_PERMISSION_CLASSES:
         if permission_class in default_perm_classes:
             default_perm_classes.remove(permission_class)
+
+            

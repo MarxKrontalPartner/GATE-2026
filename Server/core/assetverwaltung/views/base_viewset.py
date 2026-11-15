@@ -53,7 +53,7 @@ class BaseViewSet(viewsets.ModelViewSet):
                         query_filter_relation_model()
                     )
                     objects = model.objects.filter(
-                        **{filter_relation_path: relation_id}
+                        **{filter_relation_path: relation_id} 
                     )
                 else:
                     return None
@@ -100,19 +100,29 @@ class BaseViewSet(viewsets.ModelViewSet):
         return self.update_list(request, *args, **kwargs)
 
 
-    def _check_patch(self, instance, patch):
+    def _check_patch(self, instance, patch, version_field):
         server_data = self.get_serializer(instance).data
 
         changes, conflicts = {}, []
-        for op in patch:
-            field, base, new = op["field"], op.get("base"), op["new"]
-            current = server_data[field]
 
-            if current == base:
-                changes[field] = new
-            elif current != new:
-                conflicts.append({"field": field, "server_value": current})
+        # Need to work on how to handle new record created by the app.
+        #if version_field is None: 
+            #pass
 
+        if version_field == server_data.get("version"):
+            for op in patch:
+                field_name, new_data = op["field"], op["new"]
+                changes[field_name] = new_data
+        else:
+            for op in patch:
+                field_name, base_data, new_data = op["field"], op.get("base"), op["new"]
+                current = server_data[field_name]
+            
+                if current == base_data:
+                    changes[field_name] = new_data
+                elif current != new_data:
+                    conflicts.append({"field": field_name, "server_value": current})
+            
         return changes, conflicts
 
     def _build_update_list(self, submits, instances):
@@ -127,7 +137,9 @@ class BaseViewSet(viewsets.ModelViewSet):
         for submit in submits:
             instance = instances[submit["id"]]
             changes, conflicts = self._check_patch(
-                instance, submit["patch"]
+                instance, 
+                submit["patch"], 
+                submit["version"]
             )
 
             # One conflicting field marks the whole object as a conflict
@@ -170,6 +182,7 @@ class BaseViewSet(viewsets.ModelViewSet):
         validated_data = submit_serializer.validated_data
         submits = validated_data if many else [validated_data]
         ids = [submit["id"] for submit in submits]
+        saved = []
 
         with transaction.atomic():
             # Lock the rows while the patch is checked and saved
@@ -183,7 +196,7 @@ class BaseViewSet(viewsets.ModelViewSet):
 
             update_data, conflict_details = self._build_update_list(submits, instances)
 
-            saved = []
+            
             if len(update_data) == 1:
                 # One object goes through partial_update, it reads the id from kwargs
                 request._full_data = update_data[0]

@@ -244,6 +244,7 @@ class SyncSubmitListSerializer(serializers.ListSerializer):
 
 class SyncSubmitSerializer(serializers.Serializer):
     id = serializers.IntegerField()
+    version = serializers.IntegerField()
     patch = SyncPatchSerializer(many=True, allow_empty=False)
 
     class Meta:
