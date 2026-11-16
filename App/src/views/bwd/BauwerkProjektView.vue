@@ -4,13 +4,9 @@
       Zur Bauwerksübersicht
     </GateActionButton>
     <GatePageHeader :title="projekt ? `Projekt ${projekt.projektnummer}` : 'Projekt'"
-      :subtitle="bauwerk?.bezeichnung ?? 'Bauwerk'">
-      <template #actions>
-        <GateActionButton intent="primary" :prepend-icon="mdiArrowRight" :disabled="!projekt" @click="openWorkspace">
-          Untersuchungen öffnen
-        </GateActionButton>
-      </template>
-    </GatePageHeader>
+      :subtitle="bauwerk?.bezeichnung ?? 'Bauwerk'" />
+    <v-alert v-if="createdMessage" type="success" variant="tonal" closable class="mb-3"
+      @click:close="createdMessage = ''">{{ createdMessage }}</v-alert>
     <v-progress-linear v-if="loading" color="primary" indeterminate aria-label="Projekt wird geladen" />
     <v-alert v-if="error" type="error" variant="outlined" class="mb-4">
       {{ error }}
@@ -35,21 +31,22 @@
         </v-card-text>
       </v-card>
       <WorkspaceStellenList :bauwerk-id="bauwerkId" :stellen="projectStellen"
-        :projekte="projekte" :projekt-id="projektId" />
+        :projekte="projekte" :projekt-id="projektId" @created="onStelleCreated" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { mdiArrowLeft, mdiArrowRight } from '@mdi/js';
+import { mdiArrowLeft } from '@mdi/js';
 import { GateActionButton, GatePageHeader } from '@/components/common';
 import { useBauwerkWorkspace, workspaceStellenForProjekt } from '@/composables/useBauwerkWorkspace';
 import WorkspaceStellenList from '@/components/workspace/WorkspaceStellenList.vue';
 
 const route = useRoute();
 const router = useRouter();
+const createdMessage = ref('');
 const bauwerkId = computed(() => Number(route.params.bauwerkId));
 const projektId = computed(() => Number(route.params.projektId));
 const { bauwerk, projekte, untersuchungsstellen, loading, error, refresh } = useBauwerkWorkspace(bauwerkId);
@@ -63,9 +60,8 @@ function formatDate(value: string | null): string {
 function backToBauwerk() {
   void router.push({ name: 'BauwerkUebersicht', params: { bauwerkId: String(bauwerkId.value) } });
 }
-function openWorkspace() {
-  if (!projekt.value) return;
-  void router.push({ name: 'Untersuchungsstellen', params: { bauwerkId: String(bauwerkId.value) },
-    query: { projekt: String(projektId.value) } });
+function onStelleCreated() {
+  createdMessage.value = 'Untersuchungsstelle wurde lokal angelegt.';
+  void refresh();
 }
 </script>

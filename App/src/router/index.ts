@@ -42,6 +42,11 @@ const router = createRouter({
           components: { default: () => import('@/views/bwd/UntersuchungsstellenView.vue'), sidedrawer: SideDrawerBwd }
         },
         {
+          path: 'Untersuchungsstelle/:stelleId(\\d+)',
+          name: 'UntersuchungsstelleDetail',
+          components: { default: () => import('@/views/bwd/UntersuchungsstelleDetailView.vue'), sidedrawer: SideDrawerBwd }
+        },
+        {
           path: `VorOrtUntersuchung`,
           name: 'VorOrtUntersuchung',
           components: { default: () => import('@/views/bwd/VorOrtUntersuchung.vue'), sidedrawer: SideDrawerBwd }

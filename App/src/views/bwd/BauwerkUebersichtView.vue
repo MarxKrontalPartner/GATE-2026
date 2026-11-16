@@ -3,13 +3,9 @@
     <GateActionButton intent="quiet" :prepend-icon="mdiArrowLeft" @click="router.push({ name: 'bauwerkswahl' })">
       Zur Bauwerksliste
     </GateActionButton>
-    <GatePageHeader :title="bauwerk?.bezeichnung ?? 'Bauwerk'" subtitle="Bauwerksübersicht · Offline-Daten">
-      <template #actions>
-        <GateActionButton intent="primary" :prepend-icon="mdiArrowRight" @click="openWorkspace">
-          Arbeitsbereich öffnen
-        </GateActionButton>
-      </template>
-    </GatePageHeader>
+    <GatePageHeader :title="bauwerk?.bezeichnung ?? 'Bauwerk'" subtitle="Bauwerksübersicht · Offline-Daten" />
+    <v-alert v-if="createdMessage" type="success" variant="tonal" closable class="mb-3"
+      @click:close="createdMessage = ''">{{ createdMessage }}</v-alert>
     <v-progress-linear v-if="loading" color="primary" indeterminate aria-label="Bauwerk wird geladen" />
     <v-alert v-if="error" type="error" variant="outlined" class="mb-4">
       {{ error }}
@@ -39,15 +35,15 @@
             :stelle-count="stellenFuerProjekt(projekt.id).length" @open="openProject" />
         </div>
       </section>
-      <WorkspaceStellenList :bauwerk-id="bauwerkId" :stellen="untersuchungsstellen" :projekte="projekte" />
+      <WorkspaceStellenList :bauwerk-id="bauwerkId" :stellen="untersuchungsstellen" :projekte="projekte" @created="onStelleCreated" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { mdiArrowLeft, mdiArrowRight } from '@mdi/js';
+import { mdiArrowLeft } from '@mdi/js';
 import { useBauwerkWorkspace } from '@/composables/useBauwerkWorkspace';
 import { useDashboardStore } from '@/store/DashboardStore';
 import { GateActionButton, GatePageHeader, GateStatusChip, type GateStatus } from '@/components/common';
@@ -57,6 +53,7 @@ import WorkspaceStellenList from '@/components/workspace/WorkspaceStellenList.vu
 
 const route = useRoute();
 const router = useRouter();
+const createdMessage = ref('');
 const dashboard = useDashboardStore();
 const bauwerkId = computed(() => Number(route.params.bauwerkId));
 const { bauwerk, projekte, untersuchungsstellen, stellenAnzahl, stellenFuerProjekt,
@@ -70,10 +67,11 @@ const syncStatus = computed<GateStatus | null>(() => {
   return item.serverUpdateAvailable ? 'update-available' : 'synced';
 });
 onMounted(() => { void dashboard.loadLocal(); });
-function openWorkspace() {
-  void router.push({ name: 'Untersuchungsstellen', params: { bauwerkId: String(bauwerkId.value) } });
-}
 function openProject(projectId: number) {
   void router.push({ name: 'BauwerkProjekt', params: { bauwerkId: String(bauwerkId.value), projektId: String(projectId) } });
+}
+function onStelleCreated() {
+  createdMessage.value = 'Untersuchungsstelle wurde lokal angelegt.';
+  void refresh();
 }
 </script>

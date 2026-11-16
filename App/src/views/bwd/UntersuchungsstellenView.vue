@@ -132,6 +132,7 @@
               @click="toggleExpansion"
               @edit="openEditDialog"
               @delete="requestDelete"
+              @details="openStelleDetail"
             />
 
             <!-- Investigation Methods Expansion for Untersuchungsstelle -->
@@ -428,6 +429,12 @@ function navigateToLevel(levelIndex: number) {
 
 function clearProjectFilter() {
   void router.replace({ name: 'Untersuchungsstellen', params: { bauwerkId: String(bauwerkId.value) } });
+}
+
+function openStelleDetail(item: IUntersuchungsstelle) {
+  void router.push({ name: 'UntersuchungsstelleDetail', params: {
+    bauwerkId: String(bauwerkId.value), stelleId: String(item.id),
+  }, query: activeProjektId.value !== null ? { projekt: String(activeProjektId.value) } : {} });
 }
 
 function toggleExpansion(item: IUntersuchungsstelle) {

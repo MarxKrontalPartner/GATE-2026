@@ -46,6 +46,11 @@
         </v-tooltip>
       </div>
 
+      <v-btn :icon="mdiInformationOutline" variant="tonal" color="primary" class="stelle-detail-btn"
+        :aria-label="`${displayName} öffnen`" @click.stop="$emit('details', item)">
+        <v-icon :icon="mdiInformationOutline" size="24" />
+        <v-tooltip activator="parent" location="top">Details öffnen</v-tooltip>
+      </v-btn>
       <div v-if="!compact" class="action-buttons">
         <v-btn
           :icon="mdiPencil"
@@ -86,6 +91,7 @@
           />
         </template>
         <v-list density="compact">
+          <v-list-item :prepend-icon="mdiInformationOutline" title="Details öffnen" @click="$emit('details', item)" />
           <v-list-item :prepend-icon="mdiPencil" title="Bearbeiten" @click="$emit('edit', item)" />
           <v-list-item
             :prepend-icon="mdiDelete"
@@ -104,7 +110,7 @@
 <script setup lang="ts">
 // List entry of an Untersuchungsstelle.
 import { computed } from 'vue';
-import { mdiPencil, mdiDelete, mdiMapMarker, mdiDotsVertical, mdiChevronDown } from '@mdi/js';
+import { mdiPencil, mdiDelete, mdiMapMarker, mdiDotsVertical, mdiChevronDown, mdiInformationOutline } from '@mdi/js';
 
 import type { IUntersuchungsstelle } from '@/types/apiInterfaces';
 
@@ -129,6 +135,7 @@ defineEmits<{
   'click': [item: IUntersuchungsstelle];
   'edit': [item: IUntersuchungsstelle];
   'delete': [item: IUntersuchungsstelle];
+  'details': [item: IUntersuchungsstelle];
 }>();
 
 const displayName = computed(() => {
