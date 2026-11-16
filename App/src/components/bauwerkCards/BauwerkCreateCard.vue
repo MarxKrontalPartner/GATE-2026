@@ -1,12 +1,16 @@
 <template>
-  <BauwerkCardBase class="px-3 py-2" :hover="false">
+  <div v-if="compact">
+    <GateActionButton @click="openCreateNew()">Neues Bauwerk</GateActionButton>
+  </div>
+  <BauwerkCardBase v-else class="px-3 py-2" :hover="false">
     <v-card-title class="px-1">
       <span class="text-body-1 font-weight-regular text-secondary">Neues Bauwerk anlegen</span>
     </v-card-title>
 
-    <NeutralButton @click="openCreateNew()">Neu</NeutralButton>
+    <GateActionButton @click="openCreateNew()">Neu</GateActionButton>
 
-    <DialogComponent max-width="500" :show="showDialog" @update:modelValue="closeCreateNew()">
+  </BauwerkCardBase>
+  <DialogComponent class="gate-form" max-width="600" :show="showDialog" @update:modelValue="closeCreateNew()">
       <template #title>
         <span class="font-weight-regular text-secondary">Neues Bauwerk</span>
       </template>
@@ -40,17 +44,16 @@
         </v-alert>
       </template>
       <template #actions>
-        <NeutralButton @click="addBauwerk()">Bauwerk hinzufügen</NeutralButton>
+        <GateActionButton @click="addBauwerk()">Bauwerk hinzufügen</GateActionButton>
       </template>
     </DialogComponent>
-  </BauwerkCardBase>
 </template>
 <script setup lang="ts">
 import { BAUWERKE_ENDPOINT } from "@/config/endpoints";
 import { computed, ref, type Ref } from "vue";
 
 import BauwerkCardBase from "./BauwerkCardBase.vue";
-import { NeutralButton } from "@/components/buttons";
+import { GateActionButton } from "@/components/common";
 import { DialogComponent } from "@/components/dialogs";
 import { useProjekte } from "@/composables/projekte";
 import { FeedbackType, useFeedbackStore } from "@/store/FeedbackStore";
@@ -59,6 +62,8 @@ import { getErrorMessage } from "@/utils/errors";
 import type { IBauwerk, IProjekt } from "@/types/apiInterfaces";
 import { useBauwerkStore } from "@/store/BauwerkStore";
 
+
+withDefaults(defineProps<{ compact?: boolean }>(), { compact: false });
 
 const { bauwerke, setBauwerkList } = useBauwerkStore();
 const { projektList, refreshProjektList } = useProjekte();

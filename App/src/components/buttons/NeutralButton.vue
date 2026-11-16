@@ -1,5 +1,5 @@
 <template>
-  <v-btn color="primary" variant="tonal" class="text-body-2">
+  <v-btn color="primary" variant="tonal" class="gate-action-button">
     <!-- Forward slots -->
     <slot></slot>
     <slot name="prepend-icon"></slot>

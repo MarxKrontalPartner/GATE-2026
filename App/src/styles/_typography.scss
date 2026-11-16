@@ -1,0 +1,23 @@
+// Application typography. Component-specific typography stays with its component.
+.gate-page-title {
+  margin: 0;
+  font-family: var(--gate-font-family);
+  font-size: var(--gate-font-page-title);
+  font-weight: 700;
+  line-height: 1.3;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.gate-page-subtitle {
+  margin-top: var(--gate-space-1);
+  font-size: var(--gate-font-body);
+  color: var(--gate-muted-color);
+}
+
+.gate-section-title {
+  font-size: var(--gate-font-section-title);
+  font-weight: 650;
+}
+
+// Correct legacy base.css input colors for both Vuetify themes.
+.v-application input { color: rgb(var(--v-theme-on-surface)); }

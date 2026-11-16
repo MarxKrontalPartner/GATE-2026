@@ -1,0 +1,16 @@
+// Scope form sizing to .gate-form rather than overriding every legacy field.
+.gate-form .v-field,
+.gate-form-field .v-field {
+  min-height: var(--gate-touch-target);
+  border-radius: var(--gate-control-radius);
+}
+
+.gate-form .v-field__input,
+.gate-form-field .v-field__input {
+  font-size: var(--gate-font-body);
+}
+
+.gate-search-field .v-field {
+  min-height: var(--gate-touch-target);
+  border-radius: var(--gate-control-radius);
+}

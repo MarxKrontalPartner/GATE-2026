@@ -1,0 +1,11 @@
+// Design-system entry point. Each partial owns one responsibility.
+@use 'tokens';
+@use 'typography';
+@use 'layout';
+@use 'buttons';
+@use 'cards';
+@use 'forms';
+@use 'responsive';
+@use 'feedback';
+
+@use 'dashboard';

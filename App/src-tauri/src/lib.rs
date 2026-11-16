@@ -27,6 +27,10 @@ pub fn run() {
             commands::local_data::local_save_media,
             commands::local_data::local_attach_media,
             commands::local_data::local_read_media,
+            commands::dashboard::dashboard_snapshot,
+            commands::dashboard::dashboard_record_baselines,
+            commands::dashboard::dashboard_record_server_check,
+            commands::dashboard::dashboard_record_opened,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

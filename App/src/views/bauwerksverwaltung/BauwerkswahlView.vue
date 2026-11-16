@@ -1,124 +1,157 @@
 <template>
-  <v-row>
-    <v-col :cols="6" :xs="12" :sm="6" :md="8" :lg="9">
-      <h1 class="mt-3 ms-5 text-h6 font-weight-regular text-secondary">Bauwerkswahl</h1>
-    </v-col>
-    <v-col :cols="6" :xs="12" :sm="6" :md="4" :lg="3">
-      <v-autocomplete
-        v-model="selectedItems"
-        :prepend-inner-icon="mdiMagnify"
-        :clear-icon="mdiClose"
-        label="Suche"
-        :items="searchItems"
-        variant="outlined"
-        clearable
-        multiple
-        class="mt-3 me-3"
-        @update:modelValue="filterSelection()"
-      >
-      </v-autocomplete>
-    </v-col>
-  </v-row>
-  <v-row v-if="canPrepareOffline" class="mx-4 align-center">
-    <v-btn size="small" :loading="preparing" @click="prepareLocal">Daten für Offline-Arbeit vorbereiten</v-btn>
-    <span class="ms-3 text-caption" role="status">{{ prepareMessage }}</span>
-  </v-row>
-  <FeedbackFeedComponent />
-  <v-container class="w-75">
-    <v-row>
-      <v-col 
-        :cols="12" :sm="12" :md="6" :lg="6" :xl="6"
-        @click="selectBauwerk(bauwerk.id)"
-        v-for="(bauwerk, index) in filteredItems" :key="index" 
-      >
-        <BauwerkCard 
-          :bauwerk="bauwerk" 
-          :projekte="getProjekteForBauwerk(bauwerk)"
-        />
-      </v-col>
-      <v-col :cols="12" :sm="12" :md="6" :lg="6" :xl="6">
-        <BauwerkCreateCard />
-      </v-col>
-    </v-row>
-  </v-container>
+  <div class="gate-page-shell gate-dashboard-page">
+    <GatePageHeader title="Bauwerke" subtitle="MKP · Übersicht und Offline-Arbeit">
+      <template #actions>
+        <DashboardConnectionStatus :online="dashboard.online" :server-state="dashboard.serverState" />
+      </template>
+    </GatePageHeader>
 
+    <v-alert v-if="dashboard.error" type="error" variant="outlined" class="mb-4">
+      {{ dashboard.error }}
+    </v-alert>
+    <v-alert v-if="!dashboard.native" type="warning" variant="tonal" class="mb-4">
+      Browser-Vorschau: Der lokale SQLite-Status ist nur in der Tauri-App verfügbar.
+    </v-alert>
+    <FeedbackFeedComponent />
+
+    <section class="gate-dashboard-section" aria-labelledby="gate-status-heading">
+      <div class="gate-dashboard-section__heading">
+        <div>
+          <h2 id="gate-status-heading">Arbeitsübersicht</h2>
+          <p>Tippen Sie auf einen Status, um die Liste zu filtern.</p>
+        </div>
+        <GateActionButton intent="secondary" :loading="dashboard.checking"
+          @click="dashboard.checkForUpdates()">Updates prüfen</GateActionButton>
+      </div>
+      <DashboardStatusOverview :counts="counts" :selected="statusFilter" @select="statusFilter = $event" />
+      <p class="gate-dashboard-last-check" role="status">
+        Letzte Serverprüfung: {{ lastCheckedLabel }}
+      </p>
+      <p v-if="dashboard.notice" class="gate-dashboard-last-check" role="alert">
+        {{ dashboard.notice }}
+      </p>
+    </section>
+
+    <section v-if="lastOpened && archiveFilter === 'active'" class="gate-dashboard-section"
+      aria-label="Zuletzt geöffnetes Bauwerk">
+      <h2 class="gate-dashboard-section__title">Zuletzt geöffnet</h2>
+      <DashboardBauwerkCard :bauwerk="lastOpened" :project-names="projectNames(lastOpened.projektIds)"
+        recent @open="openBauwerk" @action="showActionNotice" />
+    </section>
+
+    <section class="gate-dashboard-section" aria-labelledby="gate-bauwerke-heading">
+      <div class="gate-dashboard-section__heading">
+        <div>
+          <h2 id="gate-bauwerke-heading">Bauwerksliste</h2>
+          <p>Aktive Bauwerke und archivierte Bauwerke getrennt anzeigen.</p>
+        </div>
+        <BauwerkCreateCard compact />
+      </div>
+      <div class="gate-dashboard-filters">
+        <div class="gate-dashboard-filters__tabs" role="group" aria-label="Archivfilter">
+          <v-btn :aria-pressed="archiveFilter === 'active'" :variant="archiveFilter === 'active' ? 'flat' : 'outlined'"
+            color="primary" @click="archiveFilter = 'active'">
+            Aktiv ({{ archiveCounts.active }})
+          </v-btn>
+          <v-btn :aria-pressed="archiveFilter === 'archived'" :variant="archiveFilter === 'archived' ? 'flat' : 'outlined'"
+            color="primary" @click="archiveFilter = 'archived'">
+            Archiviert ({{ archiveCounts.archived }})
+          </v-btn>
+        </div>
+        <v-text-field v-model="search" label="Bauwerke suchen" aria-label="Bauwerke suchen"
+          :prepend-inner-icon="mdiMagnify" variant="outlined" hide-details clearable
+          class="gate-dashboard-filters__search" />
+        <GateActionButton v-if="search || statusFilter" intent="quiet" @click="clearFilters">
+          Filter zurücksetzen
+        </GateActionButton>
+      </div>
+      <DashboardBauwerkList :bauwerke="filteredLocal" :available="filteredServer"
+        :project-names="projectNames" @open="openBauwerk" @action="showActionNotice" />
+      <div class="gate-dashboard-import">
+        <OfflinePreparationAction @prepared="onPrepared" />
+        <p>Vorbereiten lädt die Serverdaten einmalig herunter; es ist keine Synchronisierung.</p>
+      </div>
+    </section>
+    <v-snackbar v-model="snackbarVisible" :timeout="6000" location="bottom">
+      {{ snackbarText }}
+      <template #actions>
+        <v-btn variant="text" @click="snackbarVisible = false">Schließen</v-btn>
+      </template>
+    </v-snackbar>
+  </div>
 </template>
-
 <script setup lang="ts">
-import { mdiMagnify, mdiClose } from '@mdi/js';
-import { isTauri } from '@tauri-apps/api/core';
-import { prepareOfflineData } from '@/services/offlinePreparation';
-import { storeToRefs } from 'pinia';
-import { ref, onMounted, watch, type Ref } from "vue";
-
-import type { IBauwerk } from "@/types/apiInterfaces";
-import { BauwerkCard, BauwerkCreateCard } from "@/components/bauwerkCards"
-import FeedbackFeedComponent from "@/components/FeedbackFeedComponent.vue";
-import router from '@/router';
-import { getBauwerkeListWithFeedback } from '@/utils/FeedbackHooks';
-import { useProjekte } from '@/composables/projekte';
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { mdiMagnify } from '@mdi/js';
+import { useDashboardStore } from '@/store/DashboardStore';
 import { useBauwerkStore } from '@/store/BauwerkStore';
+import { useProjekte } from '@/composables/projekte';
+import { useDashboardFilters } from '@/composables/useDashboardFilters';
+import { GateActionButton, GatePageHeader } from '@/components/common';
+import OfflinePreparationAction from '@/components/common/OfflinePreparationAction.vue';
+import DashboardConnectionStatus from '@/components/dashboard/DashboardConnectionStatus.vue';
+import DashboardStatusOverview from '@/components/dashboard/DashboardStatusOverview.vue';
+import DashboardBauwerkCard from '@/components/dashboard/DashboardBauwerkCard.vue';
+import DashboardBauwerkList from '@/components/dashboard/DashboardBauwerkList.vue';
+import BauwerkCreateCard from '@/components/bauwerkCards/BauwerkCreateCard.vue';
+import FeedbackFeedComponent from '@/components/FeedbackFeedComponent.vue';
 
-const canPrepareOffline = isTauri();
-const preparing = ref(false);
-const prepareMessage = ref('');
-async function prepareLocal() {
-  preparing.value = true;
-  prepareMessage.value = '';
-  try {
-    const summary = await prepareOfflineData();
-    prepareMessage.value = `Lokal gespeichert: ${summary.records} Datensätze, ${summary.files} Dateien.`;
-    await refreshProjektList();
-    await getBauwerkeListWithFeedback();
-  } catch (error) {
-    prepareMessage.value = `Vorbereitung fehlgeschlagen: ${String(error)}`;
-  } finally {
-    preparing.value = false;
-  }
-}
-
-const { projektList, refreshProjektList } = useProjekte();
+const router = useRouter();
+const dashboard = useDashboardStore();
 const bauwerkStore = useBauwerkStore();
-const { bauwerke } = storeToRefs(bauwerkStore);  // necessary for watcher
+const { projektList, refreshProjektList } = useProjekte();
+const { archiveFilter, statusFilter, search, counts, archiveCounts, filteredLocal,
+  filteredServer, lastOpened, clearFilters } = useDashboardFilters();
+const snackbarVisible = ref(false);
+const snackbarText = ref('');
+const lastCheckedLabel = computed(() => dashboard.lastServerCheck
+  ? new Date(dashboard.lastServerCheck).toLocaleString('de-DE') : 'Noch nicht geprüft');
+const projectNames = (ids: number[]) => {
+  const labels = (projektList.value ?? []).filter(p => ids.includes(p.id)).map(p => p.projektnummer);
+  return labels.join(', ');
+};
 
-// get bauwerke when loading this page
-onMounted(async () => {
-  await refreshProjektList();
-  await getBauwerkeListWithFeedback();
+async function openBauwerk(id: number) {
+  try { await dashboard.markOpened(id); }
+  catch (cause) { console.warn('Last-opened timestamp not saved', cause); }
+  await router.push({ name: 'Untersuchungsstellen', params: { bauwerkId: String(id) } });
+}
+function showActionNotice(action: string, name: string) {
+  snackbarText.value = `${action} für „${name}“ ist noch nicht implementiert. ` +
+    'Nutzen Sie bis dahin „Daten für Offline-Arbeit vorbereiten“ für den bestehenden Gesamtdownload.';
+  snackbarVisible.value = true;
+}
+async function onPrepared() {
+  await Promise.allSettled([dashboard.loadLocal(), bauwerkStore.setBauwerkList(), refreshProjektList()]);
+  await dashboard.checkForUpdates();
+}
+function onConnectionChange() {
+  dashboard.online = navigator.onLine;
+  void dashboard.checkServerAvailability();
+}
+function onFocus() { void dashboard.checkServerAvailability(); }
+let timer: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  // Register monitoring immediately, even when the server catalog request
+  // is slow or unavailable. Django reachability and browser Wi-Fi are separate.
+  window.addEventListener('online', onConnectionChange);
+  window.addEventListener('offline', onConnectionChange);
+  window.addEventListener('focus', onFocus);
+  timer = setInterval(() => { void dashboard.checkServerAvailability(); }, 15_000);
+
+  void dashboard.checkServerAvailability();
+  void Promise.allSettled([
+    dashboard.loadLocal(), bauwerkStore.setBauwerkList(), refreshProjektList(),
+  ]);
+  // Never await the catalog request before starting the connectivity monitor.
+  void dashboard.checkForUpdates();
 });
-
-const searchItems = ref(bauwerke.value.map((bauwerk) => bauwerk.bezeichnung) ?? []);
-const selectedItems: Ref<Array<string>> = ref([]);
-
-const filteredItems = ref(bauwerke.value);
-
-function filterSelection(){
-  const bauwerkeInSelectedItems = bauwerke.value.filter((bauwerk) => {
-    return selectedItems.value.includes(bauwerk.bezeichnung);
-  });
-  filteredItems.value = bauwerkeInSelectedItems ?? [];
-
-  if(selectedItems.value.length === 0){
-    filteredItems.value = bauwerke.value;
-  }
-}
-
-watch(bauwerke, () => {
-  if (bauwerke.value) {
-    filterSelection();
-    searchItems.value = bauwerke.value.map((bauwerk) => bauwerk.bezeichnung) ?? [];
-  }
-}, { immediate: true});
-
-function selectBauwerk(bauwerkId: number) {
-  // The Untersuchungsstellen are the entry point of a Bauwerk.
-  router.push({ name: 'Untersuchungsstellen', params: { bauwerkId: bauwerkId.toString() } });
-}
-
-function getProjekteForBauwerk(bauwerk: IBauwerk) {
-  if (!projektList.value) return "";
-  const projekte = projektList.value.filter(projekt => bauwerk.projekt.includes(projekt.id));
-  const projekNummern = projekte.map(projekt => projekt.projektnummer);
-  return projekNummern.join(", ");
-}
+onBeforeUnmount(() => {
+  window.removeEventListener('online', onConnectionChange);
+  window.removeEventListener('offline', onConnectionChange);
+  window.removeEventListener('focus', onFocus);
+  if (timer) clearInterval(timer);
+});
+watch(() => bauwerkStore.bauwerke, () => { void dashboard.loadLocal(); });
 </script>

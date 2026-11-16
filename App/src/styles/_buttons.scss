@@ -1,0 +1,24 @@
+// Glove-friendly interactive controls. Add gate-action-button explicitly to avoid
+// unexpectedly changing compact icons inside dense investigation tables.
+.gate-action-button.v-btn {
+  min-height: var(--gate-touch-target);
+  padding-inline: var(--gate-space-4);
+  border-radius: var(--gate-control-radius);
+  font-size: var(--gate-font-body);
+  font-weight: 650;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.gate-icon-button.v-btn {
+  min-width: var(--gate-touch-target);
+  min-height: var(--gate-touch-target);
+  border-radius: var(--gate-control-radius);
+}
+
+.gate-action-button:focus-visible,
+.gate-icon-button:focus-visible,
+.gate-card-interactive:focus-visible {
+  outline: var(--gate-focus-outline);
+  outline-offset: 2px;
+}

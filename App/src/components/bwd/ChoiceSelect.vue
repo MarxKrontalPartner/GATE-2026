@@ -1,6 +1,7 @@
 <template>
   <v-select
     v-bind="$attrs"
+    class="gate-form-field"
     :model-value="model || null"
     :items="items"
     item-title="title"

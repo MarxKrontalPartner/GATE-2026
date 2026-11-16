@@ -1,0 +1,17 @@
+// Shared card surfaces and selectable Bauwerk cards.
+.gate-card.v-card {
+  border: 1px solid var(--gate-outline-color);
+  border-radius: var(--gate-card-radius);
+  background: rgb(var(--v-theme-surface));
+  overflow: hidden;
+}
+
+.gate-card-interactive {
+  cursor: pointer;
+}
+
+.gate-card-interactive .v-card-title {
+  font-size: var(--gate-font-section-title);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

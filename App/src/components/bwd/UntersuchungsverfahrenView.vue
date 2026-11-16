@@ -382,46 +382,4 @@ function structureItemTitle(item: any): string {
 
 </script>
 
-<style scoped>
-.corner-badge {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background-color: rgba(66, 192, 235, 0.5);
-  color: white;
-  padding: 0.25rem 0.5rem;
-  font-size: 1.1rem;
-  border-radius: 0 0 8px 0;
-  transition: all 0.3s ease;
-}
-
-.regular-id {
-  font-weight: 500;
-}
-
-.corner-badge:hover {
-  background-color: rgba(66, 192, 235, 0.8);
-}
-
-.duplicate-button {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 10;
-}
-
-.v-card:hover .duplicate-button {
-  opacity: 1;
-}
-
-/* Show duplicate button always on mobile */
-@media (max-width: 768px) {
-  .duplicate-button {
-    opacity: 1;
-  }
-}
-
-
-</style>
+<style scoped lang="scss" src="./UntersuchungsverfahrenView.styles.scss"></style>

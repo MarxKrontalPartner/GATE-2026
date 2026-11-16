@@ -113,21 +113,11 @@
                             density="comfortable"
                             class="ma-0 pa-0"
                         />
-                        <v-chip
-                            :color="abgeschlossenColor"
-                            variant="tonal"
+                        <GateStatusChip
+                            :status="currentUntersuchung.abgeschlossen ? 'completed' : 'in-progress'"
                             size="small"
                             class="ml-2"
-                            label
-                        >
-                            <v-icon
-                              start
-                              :icon="currentUntersuchung.abgeschlossen ? mdiCheckCircleOutline : mdiProgressClock"
-                              size="18"
-                              class="mr-1"
-                            />
-                            {{ currentUntersuchung.abgeschlossen ? 'Erledigt' : 'In Arbeit' }}
-                        </v-chip>
+                        />
                     </div>
                 </v-col>
 
@@ -143,8 +133,9 @@
 import { ref, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import type { IPerson } from '@/types/apiInterfaces';
-import { mdiThermometer, mdiWaterPercent, mdiAccountMultiple, mdiNoteText, mdiCheckCircleOutline, mdiProgressClock, mdiClockEditOutline } from '@mdi/js';
+import { mdiThermometer, mdiWaterPercent, mdiAccountMultiple, mdiNoteText, mdiClockEditOutline } from '@mdi/js';
 
+import { GateStatusChip } from '@/components/common';
 import UntersuchungsImageCard from '@/components/bwd/media/UntersuchungsImageCard.vue';
 import { useUntersuchungenStore } from '@/store/bwd/UntersuchungsverfahrenStore';
 
@@ -208,25 +199,4 @@ function setCurrentDateTime() {
 
 </script>
 
-<style scoped>
-.abgeschlossen-wrapper {
-    display: flex;
-    align-items: center;
-    padding: 4px 12px 4px 4px;
-    border: 1px solid var(--v-theme-outline-variant, #cccccc);
-    border-radius: 8px;
-    background: var(--v-theme-surface-variant, #f5f5f5);
-    transition: background-color .25s ease, border-color .25s ease;
-}
-
-.abgeschlossen-wrapper.completed {
-    background: rgba(var(--v-theme-success-rgb, 56,142,60), 0.10);
-    border-color: rgba(var(--v-theme-success-rgb, 56,142,60), 0.6);
-}
-
-.abgeschlossen-wrapper :deep(.v-selection-control) {
-    /* Reduce left padding of the checkbox to align nicely inside wrapper */
-    margin-inline-start: 4px;
-}
-
-</style>
+<style scoped lang="scss" src="./UntersuchungInfoCard.styles.scss"></style>

@@ -23,8 +23,3 @@ useBauwerkStore();
     </v-main>
   </v-app>
 </template>
-
-
-<style lang="scss">
-@import '@/assets/base.css';
-</style>

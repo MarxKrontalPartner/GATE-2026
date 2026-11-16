@@ -161,13 +161,4 @@ async function loadDetail() {
 watch([id, methodKey, art], loadDetail, { immediate: true })
 </script>
 
-<style scoped>
-/* ALWAYS show prefix/suffix in all child components of this view */
-.units-persistent :deep(.v-text-field__suffix),
-.units-persistent :deep(.v-text-field__prefix) {
-  opacity: 1 !important;             /* Vuetify sets these to 0 when empty */
-  pointer-events: none;
-  white-space: nowrap;
-  transition: none;
-}
-</style>
+<style scoped lang="scss" src="./UntersuchungsverfahreDetailView.styles.scss"></style>

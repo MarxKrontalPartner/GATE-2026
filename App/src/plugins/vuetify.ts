@@ -6,6 +6,8 @@ import { mdi, aliases } from 'vuetify/iconsets/mdi-svg';
 
 
 const mkpLightBlue = '#42c0eb';
+const gateDaylightPrimary = '#005b83';
+const gateNightOnPrimary = '#082e43';
 const mkpMediumBlue = '#12a5e2';
 const mkpDarkBlue = '#004972';
 const mkpLightenGrey1 = '#BDBDBD';
@@ -21,8 +23,8 @@ const mkpLightTheme: ThemeDefinition = {
     background: '#FFFFFF',
     surface: '#F8F9FA',
     'surface-darken-1': "#EEEEEE",
-    primary: mkpLightBlue,
-    'primary-darken-1': mkpMediumBlue,
+    primary: gateDaylightPrimary,
+    'primary-darken-1': mkpDarkBlue,
     'on-primary': white, // text on primary should be bright, because primary is relatively dark
     'on-surface': mkpDarkBlue,  // changes text color on something like cards. But also influences overlay color.
     secondary: mkpDarkBlue,
@@ -49,9 +51,9 @@ const mkpDarkTheme: ThemeDefinition = {
       background: '#333333',
       surface: '#555658',
       'surface-darken-1': "#4c4c4c",
-      primary: mkpLightBlue,
+      primary: '#80d5ef',
       'primary-darken-1': mkpMediumBlue,
-      'on-primary': white, // text on primary should be bright, because primary is relatively dark
+      'on-primary': gateNightOnPrimary, // text on primary should be bright, because primary is relatively dark
       'on-surface': white,  // changes text color on something like cards. But also influences overlay color.
       secondary: mkpLightBlue,
       'secondary-darken-1': mkpLightBlue,

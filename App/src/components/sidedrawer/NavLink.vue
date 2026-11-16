@@ -37,18 +37,4 @@ defineOptions({
 });
 </script>
 
-<style scoped>
-.v-list-item {
-  --custom-list-icon-width: 2rem;
-  --default-vuetify-indent-padding: calc(var(--parent-padding) + var(--list-indent-size));
-  /* bigger values push NavLinks to the left, smaller to the right */
-  --custom-indent-padding: 2rem; 
-  --indent-padding: calc(
-    var(--default-vuetify-indent-padding) 
-    - var(--custom-indent-padding)
-    - var(--custom-list-icon-width)
-    + var(--list-indent-size)
-  );
-  grid-template-columns: var(--custom-list-icon-width) 1fr auto;
-}
-</style>
+<style scoped lang="scss" src="./NavLink.styles.scss"></style>

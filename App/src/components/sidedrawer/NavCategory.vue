@@ -46,14 +46,4 @@ defineProps<{
 }>();
 </script>
 
-<style scoped>
-/* Default padding is way to big */
-.v-list-group {
-  --indent-padding: 0px;
-}
-/* thinner list icon */
-.v-list-item {
-  --custom-list-icon-width: 2rem;
-  grid-template-columns: var(--custom-list-icon-width) 1fr auto;
-}
-</style>
+<style scoped lang="scss" src="./NavCategory.styles.scss"></style>

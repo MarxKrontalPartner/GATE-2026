@@ -38,9 +38,4 @@ import { useFeedbackStore } from '@/store/FeedbackStore';
 */
 const feedbackStore = useFeedbackStore();
 </script>
-<style scoped lang="scss">
-#feedbackFeed {
-    z-index: 2401;  // some grid stuff uses 2. so display on top -> 3 (old) || now 2401 because vuetify card uses 2400
-    width: 45ch;
-}
-</style>
+<style scoped lang="scss" src="./FeedbackFeedComponent.styles.scss"></style>

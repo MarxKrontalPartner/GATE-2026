@@ -1,0 +1,30 @@
+// Reusable layout primitives for views and sections.
+.gate-page-shell {
+  width: min(100%, var(--gate-content-max-width));
+  margin-inline: auto;
+  padding: var(--gate-space-4);
+}
+
+.gate-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--gate-space-3);
+  margin-bottom: var(--gate-space-4);
+}
+
+.gate-page-header__actions {
+  flex: 0 1 400px;
+  min-width: min(100%, 260px);
+}
+
+.gate-card-grid {
+  align-items: stretch;
+}
+.gate-card-grid > .v-col {
+  display: flex;
+}
+.gate-card-grid > .v-col > .gate-card {
+  width: 100%;
+}

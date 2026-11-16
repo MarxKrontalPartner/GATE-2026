@@ -83,20 +83,4 @@ function confirmDelete() {
 }
 </script>
 
-<style scoped>
-.edit-actions {
-  position: fixed; /* Keep buttons visible even when scrolling */
-  bottom: 8px; /* Distance from bottom */
-  right: 8px; /* Distance from right edge */
-  gap: 12px; /* Space between FABs */
-  z-index: 1000; /* Above regular content */
-}
-
-@media (max-width: 600px) {
-  .edit-actions {
-    bottom: 16px;
-    right: 16px;
-    gap: 8px;
-  }
-}
-</style>
+<style scoped lang="scss" src="./EditAndSaveButton.styles.scss"></style>

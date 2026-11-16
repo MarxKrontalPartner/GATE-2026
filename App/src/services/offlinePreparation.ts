@@ -5,6 +5,8 @@
  * It requires Django to be reachable, but the resulting data is read offline.
  */
 import { API_BASE_URL } from '@/utils/ApiConnector';
+import { recordDownloadedBauwerke } from '@/repositories/dashboardRepository';
+import type { IBauwerk } from '@/types/apiInterfaces';
 import { attachLocalMedia, importLocal, importLocalLinks, type LocalRecord } from '@/repositories/localDomainRepository';
 
 type PlannedImport = { resource: string; records: LocalRecord[] };
@@ -58,5 +60,9 @@ export async function prepareOfflineData(): Promise<{ records: number; files: nu
     await attachLocalMedia(Number(item.id), await response.blob());
     files++;
   }
+  // Only record server baselines after the full import succeeds. The Rust
+  // repository checks the local copy matches before declaring it downloaded.
+  const downloaded = stages.find(stage => stage.resource === 'Bauwerk')?.records ?? [];
+  await recordDownloadedBauwerke(downloaded as unknown as IBauwerk[]);
   return { records, files };
 }

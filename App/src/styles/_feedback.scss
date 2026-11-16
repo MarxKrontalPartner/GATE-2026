@@ -1,0 +1,5 @@
+// Shared semantic feedback classes, used by FeedbackComponent.
+.gate-feedback--success { background-color: #dcfce7; color: #14532d; border-color: #166534 !important; }
+.gate-feedback--error { background-color: #fee2e2; color: #7f1d1d; border-color: #991b1b !important; }
+.gate-feedback--warning { background-color: #fef3c7; color: #713f12; border-color: #92400e !important; }
+.gate-feedback--info { background-color: #e0f2fe; color: #0c4a6e; border-color: #075985 !important; }

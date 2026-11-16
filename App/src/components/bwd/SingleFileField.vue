@@ -371,9 +371,4 @@ async function handleDelete(targetFile: IFiles, onClose?: () => void) {
 }
 </script>
 
-<style scoped>
-.file-frame {
-    height: 70vh;
-    border: 0;
-}
-</style>
+<style scoped lang="scss" src="./SingleFileField.styles.scss"></style>

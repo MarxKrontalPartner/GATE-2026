@@ -44,3 +44,8 @@ pub mod client_sync_cursors;
 pub mod client_sync_outbox;
 pub mod client_sync_tombstones;
 pub mod client_user_context;
+
+pub mod client_dashboard_bauwerk_baseline;
+pub mod client_dashboard_available_bauwerk;
+pub mod client_dashboard_meta;
+pub mod client_dashboard_recent_bauwerk;

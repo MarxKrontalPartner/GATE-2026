@@ -1,6 +1,7 @@
 <template>
   <v-text-field
     v-bind="$attrs"
+    class="gate-form-field"
     :model-value="model ?? ''"
     type="number"
     :step="integer ? 1 : 'any'"

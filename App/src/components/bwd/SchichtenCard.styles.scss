@@ -1,0 +1,91 @@
+.schicht-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.schicht-list {
+  position: relative;
+}
+
+.schicht-item {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.schicht-card {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform-origin: center;
+}
+
+.schicht-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.schicht-card.moving-up {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.schicht-card.moving-down {
+  transform: translateY(8px) scale(1.02);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+/* Transition group animations */
+.schicht-enter-active,
+.schicht-leave-active {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.schicht-enter-from {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+}
+
+.schicht-leave-to {
+  opacity: 0;
+  transform: translateX(-100%) scale(0.95);
+}
+
+.schicht-move {
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Delete button positioning */
+.delete-btn-corner {
+  position: absolute !important;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
+
+/* Button hover animations */
+.v-btn {
+  transition: all 0.2s ease;
+}
+
+.v-btn:hover {
+  transform: scale(1.05);
+}
+
+.v-btn:active {
+  transform: scale(0.95);
+}
+
+/* Depth display styling */
+.depth-container {
+  width: 100%;
+}
+
+.depth-field-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(var(--v-theme-outline), 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: all 0.2s ease;
+}

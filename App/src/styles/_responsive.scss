@@ -1,0 +1,19 @@
+// Tablet first: Vuetify handles responsive grids; SCSS handles shared spacing.
+@media (max-width: 599.98px) {
+  :root {
+    --gate-space-4: 1rem;
+    --gate-font-body: 1rem;
+  }
+  .gate-page-shell { padding: var(--gate-space-3); }
+  .gate-page-header { align-items: stretch; }
+  .gate-page-header__actions { flex: 1 1 100%; }
+  .gate-page-header__actions > * { width: 100%; }
+}
+
+@media (min-width: 960px) {
+  .gate-page-shell { padding-inline: var(--gate-space-5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate-card-interactive { transition: none !important; }
+}

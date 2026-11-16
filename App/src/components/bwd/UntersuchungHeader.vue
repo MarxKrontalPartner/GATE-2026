@@ -131,42 +131,4 @@ function navigateToLevel(index: number) {
 }
 </script>
 
-<style scoped>
-.hierarchy-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none; /* Firefox */
-    background: rgb(var(--v-theme-surface-darken-1));
-    color: rgb(var(--v-theme-on-surface));
-    border-color: rgba(var(--v-theme-border), 0.28);
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
-}
-
-.hierarchy-container::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
-}
-
-.hierarchy-scroll-area {
-    min-width: min-content;
-}
-
-.hierarchy-btn {
-    transition: all 0.2s ease;
-}
-
-.hierarchy-btn:hover {
-    background-color: rgba(var(--v-theme-primary), 0.05);
-}
-
-.border-thin {
-    border: 1px solid rgba(var(--v-theme-border), 0.28);
-}
-
-.opacity-70 {
-    opacity: 0.7;
-}
-
-:deep(.hierarchy-btn .v-btn__content) {
-    color: inherit;
-}
-</style>
+<style scoped lang="scss" src="./UntersuchungHeader.styles.scss"></style>

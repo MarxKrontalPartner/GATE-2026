@@ -1,5 +1,5 @@
 <template>
-  <v-app-bar>
+  <v-app-bar class="gate-top-bar">
     <template v-slot:prepend>
       <!-- sidebar toggle -->
       <v-app-bar-nav-icon :icon="mdiMenu" @click="props.toggleDrawer"></v-app-bar-nav-icon>
@@ -52,7 +52,8 @@
 
 <script lang="ts" setup>
 import { mdiAccount, mdiHome, mdiThemeLightDark, mdiMenu } from '@mdi/js';
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { useDisplay } from 'vuetify';
+import { computed } from 'vue';
 import { useTheme } from 'vuetify';
 
 import MKPLogoWebsite from '@/assets/mkp/MKP_Logo_Webseite.svg';
@@ -65,7 +66,8 @@ const props = defineProps<{
 
 const theme = useTheme()
 
-const shouldShowLogo = ref(true);
+const { width } = useDisplay();
+const shouldShowLogo = computed(() => width.value > 500);
 
 // The theme is not persisted.
 function toggleTheme() {
@@ -73,17 +75,5 @@ function toggleTheme() {
 }
 
 
-const handleWindowResize = () => {
-  shouldShowLogo.value = window.innerWidth > 500;
-}
-
-onMounted(() => {
-  window.addEventListener('resize', handleWindowResize);
-  handleWindowResize();
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleWindowResize);
-})
 
 </script>

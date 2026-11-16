@@ -463,6 +463,14 @@ pub async fn update(db: &DatabaseConnection, spec: DomainResource, id: i64, payl
 pub async fn delete(db: &DatabaseConnection, spec: DomainResource, id: i64)
     -> Result<(), String> {
     let txn = db.begin().await.map_err(|e| e.to_string())?;
+    // Dashboard metadata references the domain Bauwerk. Remove its dependents
+    // inside the same transaction before deleting the domain record.
+    if spec.table == "assetverwaltung_bauwerk" {
+        entities::client_dashboard_bauwerk_baseline::Entity::delete_by_id(id)
+            .exec(&txn).await.map_err(|e| e.to_string())?;
+        entities::client_dashboard_recent_bauwerk::Entity::delete_by_id(id)
+            .exec(&txn).await.map_err(|e| e.to_string())?;
+    }
     for rel in spec.relations {
         with_join!(rel.table, erase_parent_links, &txn, rel, id)?;
     }

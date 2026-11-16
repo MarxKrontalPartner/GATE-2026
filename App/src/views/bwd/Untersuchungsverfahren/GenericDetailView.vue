@@ -153,20 +153,4 @@ defineExpose({
 })
 </script>
 
-<style scoped>
-.max-container-width {
-  max-width: 95%;
-}
-
-.card-border {
-  border-radius: 4px;
-  border: 1px solid rgb(var(--v-theme-border));
-}
-
-.text-card {
-  color: rgb(var(--v-theme-text)) !important;
-  font-weight: 400 !important;
-}
-
-
-</style>
+<style scoped lang="scss" src="./GenericDetailView.styles.scss"></style>
