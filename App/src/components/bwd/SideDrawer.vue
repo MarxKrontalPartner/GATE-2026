@@ -10,6 +10,10 @@
     </v-list-subheader>
 
     <!-- The drawer can be rendered before the initial navigation resolved the route params. -->
+    <NavLink v-if="bauwerkId" :to="{ name: 'BauwerkUebersicht', params: { bauwerkId } }" :prepend-icon="mdiDomain">
+      Bauwerksübersicht
+    </NavLink>
+
     <NavCategory v-if="bauwerkId" title="Bauwerksdiagnostik" :prepend-icon="mdiMagnifyScan" value="bwd">
       <NavLink :to="{ name: 'Untersuchungsstellen', params: { bauwerkId } }" :prepend-icon="mdiMapMarker">
         Untersuchungsstellen
@@ -25,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { mdiArrowLeft, mdiClipboardTextOutline, mdiFlask, mdiMagnifyScan, mdiMapMarker } from '@mdi/js';
+import { mdiArrowLeft, mdiClipboardTextOutline, mdiFlask, mdiMagnifyScan, mdiMapMarker, mdiDomain } from '@mdi/js';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 

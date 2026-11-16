@@ -102,6 +102,11 @@
         </v-card-text>
       </v-card>
 
+      <v-alert v-if="activeProjektId !== null" type="info" variant="tonal" class="mb-3">
+        Projektfilter: {{ getProjektName(activeProjektId) || `Projekt #${activeProjektId}` }}
+        <v-btn variant="text" color="primary" @click="clearProjectFilter">Alle Projekte anzeigen</v-btn>
+      </v-alert>
+
       <!-- Compact List View -->
       <v-card elevation="2" class="structure-list-card">
         <v-list class="py-0 structure-list">
@@ -240,6 +245,7 @@ import {
   mdiRefresh,
 } from '@mdi/js';
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useDisplay } from 'vuetify';
 
 import InvestigationMethodsExpansion, {
@@ -269,6 +275,7 @@ interface ProcedureProgress {
 
 type GroupedUvResponse = Partial<Record<UntersuchungsverfahrenArt, Record<string, Array<Record<string, any>>>>>;
 
+const route = useRoute();
 const bauwerkStore = useBauwerkStore();
 const feedbackStore = useFeedbackStore();
 const { bauwerkId } = useBauwerkIdRouteParam();
@@ -285,6 +292,14 @@ const error = ref<string | null>(null);
 const showProgress = ref(false);
 const searchQuery = ref<string | null>('');
 const expandedUS = ref<number | null>(null);
+const activeProjektId = computed<number | null>(() => {
+  const value = Number(route.query.projekt);
+  return route.query.projekt && Number.isSafeInteger(value) && value > 0 ? value : null;
+});
+const requestedStelleId = computed<number | null>(() => {
+  const value = Number(route.query.stelle);
+  return route.query.stelle && Number.isSafeInteger(value) && value > 0 ? value : null;
+});
 
 const bauwerkName = computed(() => bauwerkStore.selectedBauwerk?.bezeichnung ?? 'Bauwerk');
 
@@ -298,8 +313,9 @@ const filteredUntersuchungsstellen = computed(() => {
   const sorted = [...untersuchungsstellen.value].sort((a, b) =>
     (a.name || '').localeCompare(b.name || '', 'de', { numeric: true }),
   );
-  if (!query) return sorted;
-  return sorted.filter((item) =>
+  const byProject = activeProjektId.value === null ? sorted : sorted.filter(item => item.projekt === activeProjektId.value);
+  if (!query) return byProject;
+  return byProject.filter((item) =>
     [item.name, item.bemerkung, getProjektName(item.projekt)]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(query)),
@@ -318,11 +334,18 @@ const methodsByStelle = computed(() => {
   return map;
 });
 
-const bauwerkProgress = computed(() => toProgress(methods.value));
+const visibleMethodList = computed(() => {
+  const ids = new Set(filteredUntersuchungsstellen.value.map(stelle => stelle.id));
+  return methods.value.filter(method => {
+    const stelleId = (method as UntersuchungsstelleMethodItem & { untersuchungsstelle?: number | null }).untersuchungsstelle;
+    return ids.has(stelleId ?? -1);
+  });
+});
+const bauwerkProgress = computed(() => toProgress(visibleMethodList.value));
 
 const levelDescription = computed(() => {
-  const stellen = untersuchungsstellen.value.length;
-  const verfahren = methods.value.length;
+  const stellen = filteredUntersuchungsstellen.value.length;
+  const verfahren = visibleMethodList.value.length;
   const stellenText = stellen === 1 ? '1 Untersuchungsstelle' : `${stellen} Untersuchungsstellen`;
   const verfahrenText = verfahren === 1 ? '1 Untersuchungsverfahren' : `${verfahren} Untersuchungsverfahren`;
   return `${stellenText} · ${verfahrenText}`;
@@ -370,11 +393,13 @@ async function loadStructure() {
   error.value = null;
   try {
     const [stellen, uvResponse] = await Promise.all([
-      apiConnector.getXResourceList<IUntersuchungsstelle>('bwd', 'Untersuchungsstelle'),
+      apiConnector.getXResourceList<IUntersuchungsstelle>('bwd', 'Untersuchungsstelle', undefined, String(bauwerkId.value)),
       apiConnector.BWD.fetchUvData('all', String(bauwerkId.value)),
       refreshProjektList({ errorFeedback: true }),
     ]);
-    untersuchungsstellen.value = stellen;
+    untersuchungsstellen.value = stellen.filter(stelle => stelle.bauwerk === Number(bauwerkId.value));
+    expandedUS.value = requestedStelleId.value && untersuchungsstellen.value.some(s => s.id === requestedStelleId.value)
+      ? requestedStelleId.value : null;
     methods.value = flattenUvResponse(uvResponse);
     loadedOnce.value = true;
   } catch (e) {
@@ -385,6 +410,9 @@ async function loadStructure() {
 }
 
 onMounted(loadStructure);
+watch(requestedStelleId, (value) => {
+  expandedUS.value = value && untersuchungsstellen.value.some(s => s.id === value) ? value : null;
+});
 watch(bauwerkId, () => {
   expandedUS.value = null;
   loadStructure();
@@ -395,7 +423,11 @@ function navigateToLevel(levelIndex: number) {
     router.push({ name: 'bauwerkswahl' });
     return;
   }
-  expandedUS.value = null;
+  void router.push({ name: 'BauwerkUebersicht', params: { bauwerkId: String(bauwerkId.value) } });
+}
+
+function clearProjectFilter() {
+  void router.replace({ name: 'Untersuchungsstellen', params: { bauwerkId: String(bauwerkId.value) } });
 }
 
 function toggleExpansion(item: IUntersuchungsstelle) {

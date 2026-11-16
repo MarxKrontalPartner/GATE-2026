@@ -24,8 +24,18 @@ const router = createRouter({
     {
       path: `/:bauwerkId(\\d+)/bwd`,
       name: 'bwd',
-      redirect: { name: 'Untersuchungsstellen' },
+      redirect: { name: 'BauwerkUebersicht' },
       children: [
+        {
+          path: 'Uebersicht',
+          name: 'BauwerkUebersicht',
+          components: { default: () => import('@/views/bwd/BauwerkUebersichtView.vue'), sidedrawer: SideDrawerBwd }
+        },
+        {
+          path: 'Projekt/:projektId(\\d+)',
+          name: 'BauwerkProjekt',
+          components: { default: () => import('@/views/bwd/BauwerkProjektView.vue'), sidedrawer: SideDrawerBwd }
+        },
         {
           path: 'Untersuchungsstellen',
           name: 'Untersuchungsstellen',

@@ -115,7 +115,7 @@ const projectNames = (ids: number[]) => {
 async function openBauwerk(id: number) {
   try { await dashboard.markOpened(id); }
   catch (cause) { console.warn('Last-opened timestamp not saved', cause); }
-  await router.push({ name: 'Untersuchungsstellen', params: { bauwerkId: String(id) } });
+  await router.push({ name: 'BauwerkUebersicht', params: { bauwerkId: String(id) } });
 }
 function showActionNotice(action: string, name: string) {
   snackbarText.value = `${action} für „${name}“ ist noch nicht implementiert. ` +
