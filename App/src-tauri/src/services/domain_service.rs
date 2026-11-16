@@ -94,8 +94,9 @@ pub async fn prepare_for_save(
     payload: serde_json::Value,
     creating: bool,
 ) -> Result<serde_json::Value, String> {
-    use sea_orm::{ConnectionTrait, DbBackend, Statement};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
     use serde_json::Value;
+    use crate::entities;
     let mut data = payload.as_object().ok_or("Expected object")?.clone();
     let diagnostic = matches!(spec.table,
         "bauwerksdiagnostik_rissbreitenmessung" |
@@ -112,23 +113,31 @@ pub async fn prepare_for_save(
         }
         let order = data.get("sort_order").and_then(Value::as_i64).unwrap_or(0);
         if order <= 0 {
-            let mut max_order = 0i64;
-            for table in [
-                "bauwerksdiagnostik_rissbreitenmessung",
-                "bauwerksdiagnostik_rueckprallhammer",
-                "bauwerksdiagnostik_kernbohrung",
-                "bauwerksdiagnostik_chloridanalyse",
-                "bauwerksdiagnostik_druckfestigkeitspruefung",
-            ] {
-                let sql = format!("SELECT COALESCE(MAX(sort_order),0) AS max_order FROM {table} WHERE untersuchungsstelle_id=? AND projekt_id=?");
-                let bind = vec![data["untersuchungsstelle"].as_i64().unwrap().into(), data["projekt"].as_i64().unwrap().into()];
-                let statement = Statement::from_sql_and_values(DbBackend::Sqlite, sql, bind);
-                if let Some(result) = db.query_one_raw(statement).await.map_err(|e|e.to_string())? {
-                    let n: i64=result.try_get("","max_order").map_err(|e|e.to_string())?;
-                    max_order=max_order.max(n);
-                }
+            let stelle_id = data["untersuchungsstelle"].as_i64().unwrap();
+            let projekt_id = data["projekt"].as_i64().unwrap();
+            // SeaORM finders use the entity fields. There is no SELECT string
+            // to maintain when the database designer adds a new column.
+            macro_rules! latest_order {
+                ($name:ident) => {{
+                    entities::$name::Entity::find()
+                        .filter(entities::$name::Column::UntersuchungsstelleId.eq(stelle_id))
+                        .filter(entities::$name::Column::ProjektId.eq(projekt_id))
+                        .order_by_desc(entities::$name::Column::SortOrder)
+                        .one(db)
+                        .await
+                        .map_err(|e| e.to_string())?
+                        .map(|row| i64::from(row.sort_order))
+                        .unwrap_or(0)
+                }};
             }
-            data.insert("sort_order".into(),Value::from(max_order+1));
+            let max_order = [
+                latest_order!(bauwerksdiagnostik_rissbreitenmessung),
+                latest_order!(bauwerksdiagnostik_rueckprallhammer),
+                latest_order!(bauwerksdiagnostik_kernbohrung),
+                latest_order!(bauwerksdiagnostik_chloridanalyse),
+                latest_order!(bauwerksdiagnostik_druckfestigkeitspruefung),
+            ].into_iter().max().unwrap_or(0);
+            data.insert("sort_order".into(), Value::from(max_order + 1));
         }
     }
     if creating && spec.table == "bauwerksdiagnostik_untersuchungsstelle" {

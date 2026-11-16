@@ -13,7 +13,23 @@ pub struct ClientDb(pub DatabaseConnection);
 pub async fn initialize(app: &tauri::AppHandle) -> Result<ClientDb, String> {
     let directory = app.path().app_data_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
-    let path = directory.join("gate-offline.sqlite3");
+    // Development branches can have different migration histories.
+    // Never reuse the production database when running a debug Tauri build.
+    // Override per branch with GATE_CLIENT_DB_FILENAME if needed.
+    let default_file = if cfg!(debug_assertions) {
+        "gate-offline-architecture-dev.sqlite3"
+    } else {
+        "gate-offline.sqlite3"
+    };
+    let filename = std::env::var("GATE_CLIENT_DB_FILENAME")
+        .unwrap_or_else(|_| default_file.to_string());
+    if filename.is_empty() || filename == "." || filename == ".."
+        || filename.contains('/') || filename.contains('\\')
+        || !filename.ends_with(".sqlite3")
+    {
+        return Err("GATE_CLIENT_DB_FILENAME must be a plain .sqlite3 filename".into());
+    }
+    let path = directory.join(filename);
 
     let options = SqliteConnectOptions::new()
         .filename(&path)
