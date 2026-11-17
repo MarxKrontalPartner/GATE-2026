@@ -42,3 +42,7 @@
   max-width: calc(100% - 140px);
   flex-wrap: wrap;
 }
+
+.gate-image-card-actions { gap: .75rem; flex-wrap: wrap; padding: 1rem; }
+.gate-image-card-action { min-height: var(--gate-touch-target); font-weight: 700; padding-inline: 1.1rem; }
+@media (max-width: 650px) { .gate-image-card-action { flex: 1 1 100%; } }

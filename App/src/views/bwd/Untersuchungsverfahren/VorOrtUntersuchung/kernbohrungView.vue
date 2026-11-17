@@ -1,261 +1,301 @@
 <template>
-  <GenericDetailView ref="genericDetailView">
-    <template v-slot:untersuchung="{ enabled }">
-      <v-container>
+  <div class="gate-page-shell gate-kernbohrung-page gate-form">
+    <GateActionButton intent="quiet" :prepend-icon="mdiArrowLeft" @click="goBack">Zur Untersuchungsstelle</GateActionButton>
+    <GatePageHeader title="Kernbohrung" :subtitle="`Vor-Ort-Untersuchung · ID ${currentUntersuchung.id || ''} · lokal gespeichert`">
+      <template #actions>
+        <GateActionButton v-if="!editing" intent="primary" :prepend-icon="mdiPencil" @click="startEditing">Bearbeiten</GateActionButton>
+        <template v-else>
+          <GateActionButton intent="quiet" :disabled="saving" @click="cancelEditing">Abbrechen</GateActionButton>
+          <GateActionButton intent="primary" :prepend-icon="mdiContentSaveAll" :loading="saving" :disabled="saving" @click="saveChanges">Speichern</GateActionButton>
+        </template>
+      </template>
+    </GatePageHeader>
 
-        <UntersuchungInfoCard :enabled="enabled" />
+    <div class="gate-kernbohrung-page__summary" aria-label="Kernbohrung Übersicht">
+      <GateStatusChip :status="draft.abgeschlossen ? 'completed' : 'in-progress'" />
+      <v-chip variant="outlined" size="large">Untersuchungsstelle {{ currentUntersuchung.untersuchungsstelle || '–' }}</v-chip>
+      <v-chip variant="outlined" size="large">{{ draft.schichtaufbau.length }} Schichten</v-chip>
+    </div>
+    <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}</v-alert>
+    <v-alert v-if="success" type="success" variant="tonal" class="mb-4">{{ success }}</v-alert>
+    <v-alert v-if="editing" type="info" variant="tonal" class="mb-4">
+      Bearbeitungsmodus: Messwerte eingeben und anschließend „Speichern“ wählen.
+      Mit „Abbrechen“ verwerfen Sie noch nicht gespeicherte Formulareingaben.
+    </v-alert>
 
-        <!-- Schichtaufbau -->
-        <v-row>
-          <v-col cols="12">
-            <SchichtenCard 
-              v-model="store.currentUntersuchung.schichtaufbau" 
-              :enabled="enabled" 
-            />
-          </v-col>
-        </v-row>
-
-        <v-row>
-          <v-col cols="12" md="12">
-            <v-sheet :elevation="5" border rounded>
-              <v-toolbar :elevation="1">
-                <v-toolbar-title>Bohrung</v-toolbar-title>
-              </v-toolbar>
-              <v-container>
-                <v-row>
-                  <v-col cols="12" md="4">
-                    <NumberField v-model="currentUntersuchung.durchmesser" label="Durchmesser" suffix="mm"
-                      min="0" :disabled="!enabled" />
-                  </v-col>
-                  <v-col cols="12" md="4">
-                    <NumberField v-model="currentUntersuchung.bohrlaenge" label="Bohrlänge" suffix="mm"
-                      min="0" :disabled="!enabled" />
-                  </v-col>
-                  <v-col cols="12" md="4">
-                    <NumberField v-model="currentUntersuchung.neigungswinkel" label="Neigungswinkel" suffix="°"
-                      hint="zur Horizontalen" persistent-hint :disabled="!enabled" />
-                  </v-col>
-                </v-row>
-                <v-row>
-                  <v-col cols="12" md="6">
-                    <ChoiceSelect v-model="currentUntersuchung.kuehlung" :items="kuehlungOptions" label="Kühlung"
-                      :disabled="!enabled" />
-                  </v-col>
-                  <v-col cols="12" md="6">
-                    <v-text-field v-model="currentUntersuchung.verschlussmaterial" label="Verschlussmaterial"
-                      :disabled="!enabled" />
-                  </v-col>
-                </v-row>
-                <v-row>
-                  <v-col cols="12" md="6">
-                    <v-checkbox v-model="currentUntersuchung.bewehrungAngeschnitten" label="Bewehrung angeschnitten"
-                      :disabled="!enabled" hide-details />
-                  </v-col>
-                  <v-col cols="12" md="6">
-                    <v-checkbox v-model="currentUntersuchung.kernVollstaendig" label="Kern vollständig"
-                      :disabled="!enabled" hide-details />
-                  </v-col>
-                </v-row>
-              </v-container>
-            </v-sheet>
-          </v-col>
-        </v-row>
-        <!-- Bohrkern -->
-        <v-row>
-          <v-col>
-            <v-sheet :elevation="5" border rounded class="position-relative overflow-hidden">
-              <div class="text-subtitle-2 pa-3 pb-0">Bohrkern</div>
-              <v-col v-if="bohrkern?.id" cols="12">
-              <v-card flat>
-                <!-- Corner tag for ID -->
-                <div class="position-absolute bg-secondary px-2 py-1 rounded-bl-xl" style="top: 0; right: 0; font-size: 0.8rem;">
-                ID: {{ bohrkern.id }}
-                </div>
-                
-                <v-card-title class="text-h6 pb-2">{{ bohrkern.name }}</v-card-title>
-                
-                <v-card-text>
-                <v-row>
-                  <v-col cols="12" md="6">
-                    <MaterialsSelect
-                      v-model="bohrkern.material"
-                      :enabled="enabled"
-                      variant="outlined"
-                    />
-                  </v-col>
-                  <v-col cols="12" md="6">
-                  <v-text-field 
-                    v-model="bohrkern.anzahlProben" 
-                    label="Anzahl Proben" 
-                    :disabled="!enabled"
-                    variant="outlined"
-                    density="comfortable"
-                    type="number"
-                  ></v-text-field>
-                  </v-col>
-                  <v-col cols="12" md="6">
-                  <v-text-field 
-                    v-model="bohrkern.name" 
-                    label="Bezeichnung" 
-                    :disabled="!enabled"
-                    variant="outlined"
-                    density="comfortable"
-                  ></v-text-field>
-                  </v-col>
-                </v-row>
-                </v-card-text>
-              </v-card>
+    <div class="gate-kernbohrung-page__sections">
+      <InvestigationBasicsFields :draft="draft" :editing="editing" :people="people" />
+      <KernbohrungDrillFields :draft="draft" :editing="editing" />
+      <KernbohrungLayers :draft="draft" :editing="editing" />
+      <GateFormSection title="Bohrkern" description="Zuordnung, Probenanzahl und Material des gewonnenen Kerns" :icon="mdiClipboardTextOutline">
+        <v-progress-linear v-if="loadingCore" color="primary" indeterminate aria-label="Bohrkern wird geladen" />
+        <v-alert v-if="coreError" type="error" variant="tonal" class="gate-kernbohrung-page__core-feedback" role="alert">
+          {{ coreError }}
+        </v-alert>
+        <v-alert v-if="coreSuccess" type="success" variant="tonal" class="gate-kernbohrung-page__core-feedback" role="status">
+          {{ coreSuccess }}
+        </v-alert>
+        <template v-if="core">
+          <div class="gate-kernbohrung-page__core-id">Bohrkern · ID {{ core.id }}</div>
+          <v-row>
+            <v-col cols="12" sm="6"><v-text-field v-model="core.name" label="Bezeichnung" variant="outlined" :readonly="!editing" /></v-col>
+            <v-col cols="12" sm="6"><NumberField :model-value="core.anzahlProben" @update:model-value="core.anzahlProben = $event ?? null" label="Anzahl Proben" integer min="0" variant="outlined" :readonly="!editing" /></v-col>
+            <v-col cols="12"><MaterialsSelect v-model="core.material" :enabled="editing" variant="outlined" /></v-col>
+          </v-row>
+        </template>
+        <template v-else-if="!loadingCore">
+          <div class="mb-3">Noch kein Bohrkern zugeordnet.
+            <span v-if="!editing">Wählen Sie „Bearbeiten“, um einen Bohrkern anzulegen.</span>
+          </div>
+          <template v-if="editing">
+            <v-row align="center">
+              <v-col cols="12" sm="7">
+                <NumberField v-if="recoveryMode" v-model="recoveryCoreId" label="Bereits vorhandene Bohrkern-ID" integer min="1"
+                  variant="outlined" hide-details="auto" hint="Nur verwenden, wenn bereits ein nicht verknüpfter Bohrkern existiert, z. B. ID 11." persistent-hint />
+                <v-text-field v-else v-model="newCoreName" label="Bohrkern-Bezeichnung" variant="outlined" hide-details="auto" />
               </v-col>
-              <v-col v-else cols="12" class="pa-4">
-                <v-card-title class="text-h6 pb-2">Kein Bohrkern vorhanden</v-card-title>
-                <v-card-subtitle class="pb-3">Neuen Bohrkern erstellen</v-card-subtitle>
-                <v-form @submit.prevent="createBohrkern">
-                  <v-text-field
-                    v-model="newBohrkern"
-                    label="Bezeichnung"
-                    :disabled="!enabled"
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details
-                    class="mb-3"
-                  >
-                    <template #append>
-                      <v-btn
-                        color="primary"
-                        @click="createBohrkern"
-                        :disabled="!enabled || !newBohrkern"
-                        variant="tonal"
-                        :prepend-icon="mdiPlusCircle"
-                      >
-                        Erstellen
-                      </v-btn>
-                    </template>
-                  </v-text-field>
-                </v-form>
+              <v-col cols="12" sm="5">
+                <GateActionButton intent="secondary" :prepend-icon="mdiPlus" :loading="creatingCore"
+                  :disabled="saving || creatingCore || (!pendingCore && !(recoveryMode ? Number.isSafeInteger(Number(recoveryCoreId)) && Number(recoveryCoreId) > 0 : newCoreName.trim()))"
+                  @click="createCore">{{ pendingCore || recoveryMode ? 'Bohrkern verknüpfen' : 'Bohrkern anlegen' }}</GateActionButton>
               </v-col>
-            </v-sheet>
+            </v-row>
+            <GateActionButton v-if="localMode()" intent="quiet" class="mt-2" :disabled="creatingCore"
+              @click="recoveryMode = !recoveryMode; coreError = ''">
+              {{ recoveryMode ? 'Neuen Bohrkern anlegen' : 'Bereits angelegten Bohrkern verknüpfen' }}
+            </GateActionButton>
+            <p class="text-medium-emphasis mt-1">Der Bohrkern wird lokal gespeichert und in einer Datenbanktransaktion mit der Kernbohrung verknüpft.</p>
+          </template>
+        </template>
+      </GateFormSection>
+      <GateFormSection title="Bilder" description="Fotos der Kernbohrung hinzufügen und lokal speichern – auch ohne Serververbindung" :icon="mdiImage">
+        <UntersuchungsImageCard :images="Array.isArray(currentUntersuchung.bilder) ? currentUntersuchung.bilder : []"
+          :enabled="editing" />
+      </GateFormSection>
+    </div>
 
-          </v-col>
-        </v-row>
-      </v-container>
-
-
-    </template>
-  </GenericDetailView>
+    <div class="gate-kernbohrung-page__footer">
+      <v-alert v-if="error" type="error" variant="tonal" class="gate-kernbohrung-page__footer-message" role="alert">{{ error }}</v-alert>
+      <GateActionButton v-if="editing" intent="danger" :prepend-icon="mdiDelete" :disabled="saving" @click="deleteDialog = true">Untersuchung löschen</GateActionButton>
+      <div class="gate-kernbohrung-page__footer-actions">
+        <GateActionButton intent="quiet" :disabled="saving" @click="editing ? cancelEditing() : goBack()">{{ editing ? 'Abbrechen' : 'Zurück' }}</GateActionButton>
+        <GateActionButton v-if="editing" intent="primary" :prepend-icon="mdiContentSaveAll" :loading="saving" :disabled="saving" @click="saveChanges">Änderungen speichern</GateActionButton>
+      </div>
+    </div>
+    <v-dialog v-model="deleteDialog" max-width="540">
+      <v-card class="gate-investigation-confirm">
+        <v-card-title>Kernbohrung löschen?</v-card-title>
+        <v-card-text>Diese lokal gespeicherte Untersuchung wird entfernt. Dies kann nicht rückgängig gemacht werden.</v-card-text>
+        <v-card-actions>
+          <GateActionButton intent="quiet" @click="deleteDialog = false">Abbrechen</GateActionButton>
+          <GateActionButton intent="danger" :loading="deleting" :disabled="deleting" @click="deleteInvestigation">Löschen</GateActionButton>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue';
+import { ref, watch } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-
-import GenericDetailView from '@/views/bwd/Untersuchungsverfahren/GenericDetailView.vue';
-import UntersuchungInfoCard from '@/components/bwd/UntersuchungInfoCard.vue';
-import MaterialsSelect from '@/components/bwd/MaterialsSelect.vue';
-import SchichtenCard from '@/components/bwd/SchichtenCard.vue';
+import { mdiArrowLeft, mdiPencil, mdiContentSaveAll, mdiClipboardTextOutline, mdiPlus, mdiDelete, mdiImage } from '@mdi/js';
+import { GateActionButton, GatePageHeader, GateStatusChip } from '@/components/common';
+import GateFormSection from '@/components/investigations/GateFormSection.vue';
+import InvestigationBasicsFields from '@/components/investigations/InvestigationBasicsFields.vue';
+import KernbohrungDrillFields from '@/components/investigations/KernbohrungDrillFields.vue';
+import KernbohrungLayers from '@/components/investigations/KernbohrungLayers.vue';
 import NumberField from '@/components/bwd/NumberField.vue';
-import ChoiceSelect, { type ChoiceOption } from '@/components/bwd/ChoiceSelect.vue';
-import { mdiPlusCircle } from '@mdi/js';
-
+import MaterialsSelect from '@/components/bwd/MaterialsSelect.vue';
+import UntersuchungsImageCard from '@/components/bwd/media/UntersuchungsImageCard.vue';
 import { useUntersuchungenStore } from '@/store/bwd/UntersuchungsverfahrenStore';
-import { useFeedbackStore } from '@/store/FeedbackStore';
 import { apiConnector } from '@/utils/ApiConnector';
+import { localMode } from '@/repositories/localDomainRepository';
 import { getErrorMessage } from '@/utils/errors';
+import { kernbohrungPatch, toKernbohrungDraft, validateKernbohrungDraft, kernbohrungPersistenceDifferences } from '@/types/kernbohrung';
+import type { KernbohrungDraft } from '@/types/kernbohrung';
+import type { IPerson } from '@/types/apiInterfaces';
 
-const kuehlungOptions: ChoiceOption[] = [
-  { value: 'nass', title: 'Nassbohrung' },
-  { value: 'trocken', title: 'Trockenbohrung' },
-];
-
-const genericDetailView = ref<InstanceType<typeof GenericDetailView> | null>(null);
-// edit mode of the GenericDetailView
-const isEnabled = computed<boolean>(() => Boolean(genericDetailView.value?.editInfo));
-
-const newBohrkern = ref<string>("");
+interface Bohrkern { id: number; name: string; anzahlProben: number | null; material: number[] }
 const store = useUntersuchungenStore();
-const feedbackStore = useFeedbackStore();
 const { currentUntersuchung } = storeToRefs(store);
+const route = useRoute();
+const router = useRouter();
+const draft = ref<KernbohrungDraft>(toKernbohrungDraft({}));
+const editing = ref(false);
+const saving = ref(false);
+const deleting = ref(false);
+const deleteDialog = ref(false);
+const loadingCore = ref(false);
+const creatingCore = ref(false);
+const core = ref<Bohrkern | null>(null);
+const coreBackup = ref<Bohrkern | null>(null);
+// If the Bohrkern was created but linking failed, retry linking the same ID.
+const pendingCore = ref<Bohrkern | null>(null);
+const coreError = ref('');
+const coreSuccess = ref('');
+const newCoreName = ref('');
+const recoveryMode = ref(false);
+const recoveryCoreId = ref<number | null>(null);
+const people = ref<IPerson[]>([]);
+const error = ref('');
+const success = ref('');
+let coreRequest = 0;
 
-interface Bohrkern {
-  id: number;
-  name: string;
-  anzahlProben: number | null;
-  material: number[];
-}
-
-
-const bohrkern = ref<Bohrkern | null>(null);
-
-function buildBohrkernPatchPayload(currentBohrkern: Bohrkern) {
-  return {
-    name: currentBohrkern.name,
-    anzahlProben: currentBohrkern.anzahlProben === null || String(currentBohrkern.anzahlProben) === ''
-      ? null
-      : Number(currentBohrkern.anzahlProben),
-    material: Array.isArray(currentBohrkern.material) ? currentBohrkern.material : [],
-  };
-}
-
-async function hydrateLinkedState() {
-  bohrkern.value = null;
-  if (currentUntersuchung.value.bohrkern) {
-    try {
-      bohrkern.value = await store.fetchBohrkern(currentUntersuchung.value.bohrkern);
-    } catch (e) {
-      console.error('Bohrkern laden fehlgeschlagen', e);
-      bohrkern.value = null;
+watch(() => currentUntersuchung.value, async record => {
+  if (!record?.id || editing.value) return;
+  editing.value = false;
+  draft.value = toKernbohrungDraft(record);
+  core.value = null;
+  pendingCore.value = null;
+  coreError.value = '';
+  coreSuccess.value = '';
+  const request = ++coreRequest;
+  const coreId = Number(record.bohrkern);
+  if (!coreId) return;
+  loadingCore.value = true;
+  try {
+    const result = await store.fetchBohrkern(coreId) as Bohrkern;
+    if (request === coreRequest) {
+      core.value = { id: result.id, name: result.name ?? '',
+        anzahlProben: result.anzahlProben ?? null, material: Array.isArray(result.material) ? result.material : [] };
     }
+  } catch (cause) {
+    if (request === coreRequest) coreError.value = getErrorMessage(cause, 'Bohrkern konnte nicht geladen werden.');
+  } finally { if (request === coreRequest) loadingCore.value = false; }
+}, { immediate: true });
+
+// Dropdown values are loaded from the existing local-first API; no server is needed on tablets.
+apiConnector.getResourceList('Person').then(rows => { people.value = rows as IPerson[]; }).catch(() => { people.value = []; });
+function startEditing() {
+  draft.value = toKernbohrungDraft(currentUntersuchung.value);
+  coreBackup.value = core.value ? JSON.parse(JSON.stringify(core.value)) as Bohrkern : null;
+  error.value = ''; success.value = '';
+  coreError.value = '';
+  coreSuccess.value = '';
+  editing.value = true;
+}
+function cancelEditing() {
+  draft.value = toKernbohrungDraft(currentUntersuchung.value);
+  core.value = coreBackup.value ? JSON.parse(JSON.stringify(coreBackup.value)) as Bohrkern : core.value;
+  editing.value = false;
+  coreError.value = '';
+  coreSuccess.value = '';
+}
+function goBack() {
+  const bauwerkId = Number(route.params.bauwerkId);
+  const stelleId = Number(currentUntersuchung.value.untersuchungsstelle);
+  if (Number.isSafeInteger(stelleId) && stelleId > 0 && Number.isSafeInteger(bauwerkId) && bauwerkId > 0) {
+    void router.push({ name: 'UntersuchungsstelleDetail', params: { bauwerkId: String(bauwerkId), stelleId: String(stelleId) } });
+  } else {
+    void router.push({ name: 'BauwerkUebersicht', params: { bauwerkId: String(bauwerkId) } });
   }
 }
-
-onMounted(() => {
-  // Initialize schichtaufbau if it doesn't exist
-  if (!currentUntersuchung.value.schichtaufbau) {
-    currentUntersuchung.value.schichtaufbau = [];
+async function saveChanges() {
+  if (!editing.value || saving.value) return;
+  error.value = ''; success.value = '';
+  const message = validateKernbohrungDraft(draft.value);
+  if (message) { error.value = message; return; }
+  if (!Number.isSafeInteger(Number(currentUntersuchung.value.id))) return;
+  if (core.value && (core.value.anzahlProben !== null && (!Number.isInteger(Number(core.value.anzahlProben)) || Number(core.value.anzahlProben) < 0))) {
+    error.value = 'Die Anzahl der Proben muss eine nicht negative ganze Zahl sein.'; return;
   }
-  // Ensure existing schichten have required structure
-  currentUntersuchung.value.schichtaufbau.forEach((schicht: any, index: number) => {
-    if (!Object.prototype.hasOwnProperty.call(schicht, 'bezeichnung')) schicht.bezeichnung = '';
-    if (!Object.prototype.hasOwnProperty.call(schicht, 'beschreibung')) schicht.beschreibung = '';
-    if (!Object.prototype.hasOwnProperty.call(schicht, 'id')) schicht.id = `schicht-${Date.now()}-${index}`;
-    if (!Object.prototype.hasOwnProperty.call(schicht, 'tiefe_von')) schicht.tiefe_von = 0;
-    if (!Object.prototype.hasOwnProperty.call(schicht, 'tiefe_bis')) schicht.tiefe_bis = schicht.tiefe_von || 0;
-  });
-
-  // Load linked entities
-  hydrateLinkedState();
-});
-
-
-
-function createBohrkern() {
-  if (!newBohrkern.value) return;
-
-  store.createBohrkern(newBohrkern.value).then(response => {
-    bohrkern.value = response;
-    currentUntersuchung.value.bohrkern = bohrkern.value?.id;
-    newBohrkern.value = '';
-    return store.saveCurrentUntersuchung();
-  }).catch(error => {
-    feedbackStore.addError(getErrorMessage(error, 'Bohrkern konnte nicht erstellt werden'), 'Bohrkern');
-  });
-
-}
-
-// Watch for changes in editInfo (when user clicks save in parent)
-watch(() => isEnabled.value , async (newValue, oldValue) => {
-  // When switching from edit mode to view mode (save was clicked)
-  if (oldValue === true && newValue === false && bohrkern.value) {
-    try {
-      await apiConnector.patchxResource('bwd', 'Bohrkern', buildBohrkernPatchPayload(bohrkern.value), bohrkern.value.id);
-    } catch (error) {
-      feedbackStore.addError(getErrorMessage(error, 'Bohrkern konnte nicht gespeichert werden'), 'Bohrkern');
+  saving.value = true;
+  try {
+    if (core.value) {
+      await apiConnector.patchxResource('bwd', 'Bohrkern', {
+        name: core.value.name,
+        anzahlProben: core.value.anzahlProben === null ? null : Number(core.value.anzahlProben),
+        material: core.value.material,
+      }, core.value.id);
     }
+    const investigationId = Number(currentUntersuchung.value.id);
+    // Snapshot the typed values before the store replaces the current record.
+    const requested = JSON.parse(JSON.stringify(draft.value)) as KernbohrungDraft;
+    await store.updateUntersuchung(investigationId, 'kernbohrung', kernbohrungPatch(requested));
+    // Verify a fresh read from SQLite instead of trusting an old Pinia object.
+    const fresh = await apiConnector.BWD.fetchUntersuchungDetailData(
+      investigationId, 'kernbohrung', 'VorOrtUntersuchung'
+    ) as Record<string, unknown>;
+    const differences = kernbohrungPersistenceDifferences(requested, fresh);
+    if (differences.length) {
+      throw new Error(`Nicht korrekt aus der Datenbank zurückgelesen: ${differences.join(', ')}. Die Eingaben bleiben im Formular erhalten.`);
+    }
+    store.currentUntersuchung = { ...fresh, type: 'kernbohrung' } as typeof store.currentUntersuchung;
+    draft.value = toKernbohrungDraft(fresh);
+    editing.value = false;
+    coreBackup.value = core.value ? JSON.parse(JSON.stringify(core.value)) as Bohrkern : null;
+    success.value = 'Kernbohrung gespeichert und aus SQLite überprüft.';
+  } catch (cause) {
+    error.value = getErrorMessage(cause, 'Die Änderungen konnten nicht gespeichert werden.');
+  } finally { saving.value = false; }
+}
+async function createCore() {
+  if (!editing.value || creatingCore.value || saving.value) return;
+  const investigationId = Number(currentUntersuchung.value.id);
+  if (!Number.isSafeInteger(investigationId) || investigationId <= 0) {
+    coreError.value = 'Bitte zuerst die Kernbohrung anlegen und öffnen.';
+    return;
   }
-});
-
-watch(() => currentUntersuchung.value.id, async (newId, oldId) => {
-  if (!newId || newId === oldId) return;
-  await hydrateLinkedState();
-});
-
+  creatingCore.value = true;
+  coreError.value = '';
+  coreSuccess.value = '';
+  try {
+    let created: Bohrkern;
+    if (localMode()) {
+      // One SeaORM/SQLite transaction: no orphan core on a failed link.
+      const existingId = pendingCore.value?.id ?? (recoveryMode.value ? recoveryCoreId.value : null);
+      created = await invoke<Bohrkern>('local_create_or_link_bohrkern', {
+        kernbohrungId: investigationId,
+        name: newCoreName.value.trim(),
+        existingBohrkernId: existingId,
+      });
+    } else {
+      // Browser/Django fallback pending a server-side atomic endpoint.
+      created = pendingCore.value ?? await store.createBohrkern(newCoreName.value.trim()) as Bohrkern;
+      pendingCore.value = created;
+      try {
+        await store.updateUntersuchung(investigationId, 'kernbohrung', { bohrkern: Number(created.id) });
+      } catch (cause) {
+        throw new Error(`Bohrkern ID ${created.id} wurde angelegt, aber die Verknüpfung ist fehlgeschlagen: ${getErrorMessage(cause, 'Speicherfehler')}`);
+      }
+    }
+    // Confirm both the row and the foreign key after the transaction.
+    const refreshed = await apiConnector.BWD.fetchUntersuchungDetailData(
+      investigationId, 'kernbohrung', 'VorOrtUntersuchung'
+    ) as Record<string, unknown>;
+    if (Number(refreshed.bohrkern) !== Number(created.id)) {
+      throw new Error(`Bohrkern ID ${created.id} wurde nicht als Verknüpfung zurückgelesen. Bitte nicht erneut anlegen; Datenbankzustand prüfen.`);
+    }
+    store.currentUntersuchung = { ...refreshed, type: 'kernbohrung' } as typeof store.currentUntersuchung;
+    const confirmed = {
+      id: Number(created.id), name: created.name ?? newCoreName.value.trim(),
+      anzahlProben: created.anzahlProben ?? null,
+      material: Array.isArray(created.material) ? created.material : [],
+    };
+    core.value = confirmed;
+    coreBackup.value = structuredClone(confirmed);
+    pendingCore.value = null;
+    newCoreName.value = '';
+    recoveryMode.value = false;
+    recoveryCoreId.value = null;
+    coreSuccess.value = 'Bohrkern angelegt/verknüpft und in SQLite überprüft.';
+  } catch (cause) {
+    coreError.value = getErrorMessage(cause, 'Bohrkern konnte nicht gespeichert werden.');
+  } finally {
+    creatingCore.value = false;
+  }
+}
+async function deleteInvestigation() {
+  if (deleting.value) return;
+  deleting.value = true; error.value = '';
+  try {
+    await store.deleteUntersuchung(Number(currentUntersuchung.value.id), 'VorOrtUntersuchung', 'kernbohrung');
+    deleteDialog.value = false;
+    goBack();
+  } catch (cause) { error.value = getErrorMessage(cause, 'Untersuchung konnte nicht gelöscht werden.'); deleteDialog.value = false; }
+  finally { deleting.value = false; }
+}
 </script>
+

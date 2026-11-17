@@ -58,3 +58,17 @@ pub async fn local_attach_media(app: tauri::AppHandle, db: State<'_, ClientDb>, 
 pub async fn local_read_media(app: tauri::AppHandle, db: State<'_, ClientDb>, id: i64) -> Result<String,String> {
     media_service::read(&app, &db, id).await
 }
+
+/// Creates a Bohrkern and links it to a Kernbohrung atomically.
+/// Passing an existing Bohrkern ID can recover a previously orphaned local record.
+#[tauri::command]
+pub async fn local_create_or_link_bohrkern(
+    db: State<'_, ClientDb>,
+    kernbohrung_id: i64,
+    name: String,
+    existing_bohrkern_id: Option<i64>,
+) -> Result<Value, String> {
+    crate::repositories::kernbohrung_repository::create_or_link(
+        &db.0, kernbohrung_id, &name, existing_bohrkern_id
+    ).await
+}

@@ -86,9 +86,9 @@ function openMethod(method: StelleMethod) {
   void router.push({ name: 'UntersuchungsverfahrenDetail', params: { bauwerkId: String(bauwerkId.value),
     art: method.category, untersuchung: getMethodRouteSlug(method.type), id: String(method.id) } });
 }
-async function onCreated() {
-  await refresh();
-  successMessage.value = 'Untersuchungsverfahren wurde angelegt.';
+function onCreated(method: StelleMethod) {
+  // Open the new investigation immediately—no additional tap is required.
+  openMethod(method);
 }
 async function saveEdits(changes: StelleEdits) {
   saveError.value = '';

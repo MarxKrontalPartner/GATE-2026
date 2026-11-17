@@ -13,3 +13,7 @@
 @use 'stelle';
 
 @use 'workspace-stelle-cards';
+
+// Stage 7 investigation forms: shared, unscoped so child Vuetify controls inherit sizing.
+@use '../components/bwd/CreateUntersuchungButton.styles';
+@use '../views/bwd/Untersuchungsverfahren/VorOrtUntersuchung/kernbohrungView.styles';

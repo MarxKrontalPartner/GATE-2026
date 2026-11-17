@@ -7,7 +7,7 @@
       </div>
       <CreateUntersuchungButton v-if="stelle.projekt !== null" :untersuchungsstelle="stelle"
         button-size="large" button-density="default" button-variant="flat"
-        button-class="gate-stelle-create-method" @created="$emit('created')" />
+        button-class="gate-stelle-create-method" @created="onCreated" />
     </div>
     <v-alert v-if="stelle.projekt === null" type="warning" variant="tonal">
       Für neue Untersuchungsverfahren muss die Stelle einem Projekt zugeordnet sein.
@@ -40,10 +40,13 @@ import { computed } from 'vue';
 import CreateUntersuchungButton from '@/components/bwd/CreateUntersuchungButton.vue';
 import { GateActionButton, GateStatusChip } from '@/components/common';
 import type { IUntersuchungsstelle } from '@/types/apiInterfaces';
-import type { StelleMethod } from '@/composables/bwd/stelleMethods';
+import type { StelleMethod, StelleMethodCategory } from '@/composables/bwd/stelleMethods';
 import { getMethodDisplayName } from '@/utils/UntersuchungsverfahrenRegistry';
 const props = defineProps<{ stelle: IUntersuchungsstelle; methods: StelleMethod[] }>();
-defineEmits<{ created: []; open: [method: StelleMethod] }>();
+const emit = defineEmits<{ created: [method: StelleMethod]; open: [method: StelleMethod] }>();
+function onCreated(created: { id: number }, category: StelleMethodCategory, type: string) {
+  emit('created', { id: created.id, category, type, untersuchungsstelle: props.stelle.id, datum: null, abgeschlossen: false, sort_order: 0 });
+}
 const completed = computed(() => props.methods.filter(m => m.abgeschlossen === true).length);
 function formatDate(value: string | null): string {
   if (!value) return 'Nicht angegeben';

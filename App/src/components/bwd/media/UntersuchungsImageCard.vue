@@ -59,8 +59,8 @@
         <span>Keine Bilder vorhanden</span>
       </div>
       </div>
-      <v-card-actions class="image-card-actions">
-        <v-btn color="secondary" variant="tonal" :append-icon="mdiImage" :disabled="!props.enabled || imageData.length === 0"
+      <v-card-actions class="image-card-actions gate-image-card-actions">
+        <v-btn class="gate-image-card-action" color="secondary" variant="tonal" :append-icon="mdiImage" :disabled="!props.enabled || imageData.length === 0"
           @click="showEditDialog = true">
           BEARBEITEN
         </v-btn>
@@ -72,7 +72,7 @@
           @saveChanges="saveChanges" 
         />
         <v-spacer></v-spacer>
-        <v-btn color="primary" variant="tonal" :append-icon="mdiImage" :disabled="!props.enabled" @click="showUploadDialog = true">
+        <v-btn class="gate-image-card-action" color="primary" variant="tonal" :append-icon="mdiImage" :disabled="!props.enabled" @click="showUploadDialog = true">
           HINZUFÜGEN
         </v-btn>
         <AddImageDialog v-model="showUploadDialog" @uploadImage="uploadImage" />
