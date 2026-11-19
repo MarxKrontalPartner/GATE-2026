@@ -175,7 +175,45 @@ where E: EntityTrait, C: ConnectionTrait,
         }
         let fields = active_input::<E, C>(conn, spec.table, map, false, false).await?;
         if fields.as_object().is_some_and(|m| m.is_empty()) { return Ok(id); }
-        let mut active = E::ActiveModel::from_json(fields).map_err(|e| e.to_string())?;
+        let existing = E::find()
+            .filter(id_col.eq(id))
+            .one(conn)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("Record {id} not found"))?;
+
+        // Use real values for omitted fields, avoiding synthetic date defaults.
+        let mut merged = serde_json::to_value(&existing)
+            .map_err(|e| e.to_string())?;
+
+        let supplied = fields
+            .as_object()
+            .ok_or("Expected update fields")?;
+
+        let merged_fields = merged
+            .as_object_mut()
+            .ok_or("Expected serialized model object")?;
+
+        for (key, value) in supplied {
+            merged_fields.insert(key.clone(), value.clone());
+        }
+
+        let updated: E::Model = serde_json::from_value(merged)
+            .map_err(|e| e.to_string())?;
+
+        let mut active = updated.into_active_model();
+
+        // Keep omitted columns out of the UPDATE.
+        for column in E::Column::iter() {
+            if supplied.contains_key(column.json_key()) {
+                // Mark supplied fields for writing.
+                active.reset(column);
+            } else {
+                // Preserve fields omitted from the update.
+                active.not_set(column);
+            }
+        }
+
         active.try_set(id_col, id.into()).map_err(|e| e.to_string())?;
         active.update(conn).await.map_err(|e| e.to_string())?;
         Ok(id)
