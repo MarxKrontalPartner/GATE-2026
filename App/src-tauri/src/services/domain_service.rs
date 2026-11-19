@@ -85,6 +85,36 @@ pub fn api_to_column_value<'a>(payload: &'a serde_json::Map<String, serde_json::
     payload.get(col).or_else(|| col.strip_suffix("_id").and_then(|key| payload.get(key)))
 }
 
+fn validate_kernbohrung(
+    data: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    // Validate supplied fields only, so partial updates remain supported.
+    if let Some(value) = data.get("kuehlung") {
+        match value.as_str() {
+            Some("" | "nass" | "trocken") => {}
+            _ => {
+                return Err(
+                    "Kühlung muss leer, 'nass' oder 'trocken' sein.".into(),
+                );
+            }
+        }
+    }
+
+    if let Some(value) = data.get("verschlussmaterial") {
+        let text = value
+            .as_str()
+            .ok_or("Verschlussmaterial muss ein Text sein.")?;
+
+        if text.chars().count() > 100 {
+            return Err(
+                "Verschlussmaterial darf höchstens 100 Zeichen enthalten.".into(),
+            );
+        }
+    }
+
+    Ok(())
+}
+
 /// Business rules for existing diagnostic forms, separate from IPC and SQL.
 /// These are local rules only: server authorization and cross-device checks
 /// are deliberately outside the scope of this phase.
@@ -98,6 +128,11 @@ pub async fn prepare_for_save(
     use serde_json::Value;
     use crate::entities;
     let mut data = payload.as_object().ok_or("Expected object")?.clone();
+
+    if spec.table == "bauwerksdiagnostik_kernbohrung" {
+        validate_kernbohrung(&data)?;
+    }
+
     let diagnostic = matches!(spec.table,
         "bauwerksdiagnostik_rissbreitenmessung" |
         "bauwerksdiagnostik_rueckprallhammer" |
@@ -154,4 +189,92 @@ pub async fn prepare_for_save(
         }
     }
     Ok(Value::Object(data))
+}
+
+#[cfg(test)]
+mod kernbohrung_validation_tests {
+    use super::validate_kernbohrung;
+    use serde_json::{json, Value};
+
+    fn validate(payload: Value) -> Result<(), String> {
+        validate_kernbohrung(payload.as_object().unwrap())
+    }
+
+    #[test]
+    fn accepts_allowed_cooling_and_omitted_fields() {
+        for cooling in ["", "nass", "trocken"] {
+            assert!(validate(json!({ "kuehlung": cooling })).is_ok());
+        }
+
+        assert!(validate(json!({
+            "bemerkung": "Partial update"
+        })).is_ok());
+    }
+
+    #[test]
+    fn rejects_invalid_cooling() {
+        for cooling in [json!("INVALID"), Value::Null, json!(42)] {
+            assert!(validate(json!({
+                "kuehlung": cooling
+            })).is_err());
+        }
+    }
+
+    #[test]
+    fn checks_material_length_in_characters() {
+        assert!(validate(json!({
+            "verschlussmaterial": ""
+        })).is_ok());
+
+        assert!(validate(json!({
+            "verschlussmaterial": "ö".repeat(100)
+        })).is_ok());
+
+        assert!(validate(json!({
+            "verschlussmaterial": "ö".repeat(101)
+        })).is_err());
+    }
+
+    #[test]
+    fn rejects_non_text_material() {
+        for material in [Value::Null, json!(42)] {
+            assert!(validate(json!({
+                "verschlussmaterial": material
+            })).is_err());
+        }
+    }
+
+    #[test]
+    fn save_service_rejects_invalid_kernbohrung_fields() {
+        tauri::async_runtime::block_on(async {
+            let db = sea_orm::Database::connect("sqlite::memory:")
+                .await
+                .expect("in-memory database");
+
+            let spec = super::resource("Kernbohrung").unwrap();
+
+            for creating in [true, false] {
+                for invalid in [
+                    json!({ "kuehlung": "INVALID" }),
+                    json!({ "verschlussmaterial": "ö".repeat(101) }),
+                ] {
+                    let mut payload = invalid;
+                    payload["bauwerk"] = json!(1);
+                    payload["projekt"] = json!(1);
+                    payload["untersuchungsstelle"] = json!(1);
+                    payload["sort_order"] = json!(1);
+
+                    let result = super::prepare_for_save(
+                        &db, spec, payload, creating,
+                    )
+                    .await;
+
+                    assert!(
+                        result.is_err(),
+                        "Invalid fields must be rejected; creating={creating}"
+                    );
+                }
+            }
+        });
+    }
 }
