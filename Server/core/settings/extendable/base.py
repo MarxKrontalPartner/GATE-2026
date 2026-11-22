@@ -12,6 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 INSTALLED_APPS = [
     "core.bauwerksdiagnostik.apps.BauwerksdiagnostikConfig",
     "core.assetverwaltung.apps.AssetverwaltungConfig",
+    "core.authentication.apps.AuthenticationConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -86,11 +87,23 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
     ],
-    # No authentication is configured; see local.py.
+    # Keycloak bearer tokens; local.py turns off IsAuthenticated for development.
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "core.authentication.keycloak.KeycloakAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+
+KEYCLOAK_URL = "http://localhost:8080"
+KEYCLOAK_REALM = "MKP"
+KEYCLOAK_CLIENT_ID = "mkp-app"
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:1420",
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+]

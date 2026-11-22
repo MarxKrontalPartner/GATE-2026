@@ -1,6 +1,7 @@
 import SideDrawerBwd from '@/components/bwd/SideDrawer.vue';
 import SideDrawerProjektauswahl from '@/components/projektauswahl/SideDrawer.vue';
 import { replaceLettersWithUmlauts, replaceWithDisplayName } from '@/utils/StringSanitizers';
+import { isLoggedIn } from '@/services/auth';
 import { createRouter, createWebHistory } from 'vue-router';
 
 
@@ -71,6 +72,18 @@ const router = createRouter({
 
   ]
 })
+
+// Every page except the login page needs a login.
+// The stored tokens count as logged in, so the app also opens offline.
+router.beforeEach((to) => {
+  const loggedIn = isLoggedIn();
+  if (to.name !== 'login' && !loggedIn) {
+    return { name: 'login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} };
+  }
+  if (to.name === 'login' && loggedIn) {
+    return { name: 'index' };
+  }
+});
 
 router.beforeEach(async (to) => {
   // Set title of the document

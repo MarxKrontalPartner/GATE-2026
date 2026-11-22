@@ -8,9 +8,17 @@ import router from './router';
 import vuetify from './plugins/vuetify';
 import { isTauri } from '@tauri-apps/api/core';
 import { watchServer } from '@/services/connectivity';
+import { installAuthFetch } from '@/services/auth';
 import "@/assets/base.css";
 import "@/assets/main.scss"; // must be imported after vuetify!
 
+
+// Every API request carries the Keycloak token; an expired login opens the login page.
+installAuthFetch(() => {
+  if (router.currentRoute.value.name !== 'login') {
+    router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } });
+  }
+});
 
 const app = createApp(App)
 

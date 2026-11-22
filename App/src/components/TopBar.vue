@@ -39,6 +39,17 @@
               <v-icon :icon="mdiThemeLightDark" color="secondary" />
             </template>
           </v-list-item>
+          <!-- Logout -->
+          <v-list-item
+            title="Abmelden"
+            value="logout"
+            :disabled="loggingOut"
+            @click="signOut"
+          >
+            <template v-slot:prepend>
+              <v-icon :icon="mdiLogout" color="secondary" />
+            </template>
+          </v-list-item>
         </v-list>
       </v-menu>
       <v-tooltip
@@ -51,10 +62,12 @@
 </template>
 
 <script lang="ts" setup>
-import { mdiAccount, mdiHome, mdiThemeLightDark, mdiMenu } from '@mdi/js';
+import { mdiAccount, mdiHome, mdiThemeLightDark, mdiMenu, mdiLogout } from '@mdi/js';
 import { useDisplay } from 'vuetify';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useTheme } from 'vuetify';
+import { useRouter } from 'vue-router';
+import { logout } from '@/services/auth';
 
 import MKPLogoWebsite from '@/assets/mkp/MKP_Logo_Webseite.svg';
 import MKPLogoWebsiteInvers from '@/assets/mkp/MKP_Logo_Webseite_invers.svg';
@@ -72,6 +85,20 @@ const shouldShowLogo = computed(() => width.value > 500);
 // The theme is not persisted.
 function toggleTheme() {
   theme.global.name.value = theme.global.current.value.dark ? 'mkpLightTheme' : 'mkpDarkTheme';
+}
+
+const router = useRouter();
+const loggingOut = ref(false);
+
+// Offline changes stay in the local database and are sent after the next login.
+async function signOut() {
+  loggingOut.value = true;
+  try {
+    await logout();
+  } finally {
+    loggingOut.value = false;
+    await router.replace({ name: 'login' });
+  }
 }
 
 

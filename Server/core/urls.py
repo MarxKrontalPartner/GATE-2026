@@ -29,6 +29,7 @@ urlpatterns = [
     path("", api_root, name="api_root"),
     path("api/", include("core.assetverwaltung.urls")),
     path("api/bwd/", include("core.bauwerksdiagnostik.urls")),
+    path("api/auth/", include("core.authentication.urls")),
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
     path("admin/", admin.site.urls),
 ]

@@ -1,18 +1,37 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { mdiEye, mdiEyeOff, mdiLockOutline, mdiEmailOutline } from '@mdi/js';
+import { useRoute, useRouter } from 'vue-router';
+import type { SubmitEventPromise } from 'vuetify';
+import { mdiEye, mdiEyeOff, mdiLockOutline, mdiAccountOutline } from '@mdi/js';
 import MKPLogo from '@/assets/mkp/MKP_Logo_Webseite.svg';
+import { login } from '@/services/auth';
 
-const email = ref('');
+const route = useRoute();
+const router = useRouter();
+
+const username = ref('');
 const password = ref('');
 const showPassword = ref(false);
-const submitted = ref(false);
-const validEmail = (value: string) => /\S+@\S+\.\S+/.test(value) || 'Bitte geben Sie eine gültige E-Mail-Adresse ein.';
+const loading = ref(false);
+const error = ref<string | null>(null);
+const requiredUsername = (value: string) => !!value.trim() || 'Bitte geben Sie Ihren Benutzernamen oder Ihre E-Mail-Adresse ein.';
 const requiredPassword = (value: string) => !!value || 'Bitte geben Sie Ihr Passwort ein.';
 
-function submit() {
-  submitted.value = true;
-  // Frontend only: no credentials are sent or stored.
+async function submit(event: SubmitEventPromise) {
+  if (!(await event).valid) return;
+  loading.value = true;
+  error.value = null;
+  try {
+    await login(username.value.trim(), password.value);
+    password.value = '';
+    const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
+      ? route.query.redirect : '/';
+    await router.replace(redirect);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Anmeldung fehlgeschlagen.';
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
 
@@ -25,11 +44,11 @@ function submit() {
         <p>Melden Sie sich an, um fortzufahren.</p>
       </div>
       <v-form @submit.prevent="submit" validate-on="submit">
-        <label for="login-email" class="field-label">E-Mail-Adresse</label>
+        <label for="login-username" class="field-label">Benutzername oder E-Mail-Adresse</label>
         <v-text-field
-          id="login-email" v-model="email" type="email" autocomplete="username"
-          placeholder="name@beispiel.de" :prepend-inner-icon="mdiEmailOutline"
-          :rules="[validEmail]" variant="outlined" density="comfortable" class="mb-3"
+          id="login-username" v-model="username" autocomplete="username"
+          placeholder="name@beispiel.de" :prepend-inner-icon="mdiAccountOutline"
+          :rules="[requiredUsername]" :disabled="loading" variant="outlined" density="comfortable" class="mb-3"
         />
         <label for="login-password" class="field-label">Passwort</label>
         <v-text-field
@@ -37,12 +56,12 @@ function submit() {
           :type="showPassword ? 'text' : 'password'" placeholder="Passwort eingeben"
           :prepend-inner-icon="mdiLockOutline" :append-inner-icon="showPassword ? mdiEyeOff : mdiEye"
           @click:append-inner="showPassword = !showPassword"
-          :rules="[requiredPassword]" variant="outlined" density="comfortable"
+          :rules="[requiredPassword]" :disabled="loading" variant="outlined" density="comfortable"
         />
-        <v-alert v-if="submitted" class="my-4" type="info" variant="tonal" density="compact">
-          Dies ist eine Demo-Anmeldeseite. Die Anmeldung ist noch nicht mit einem Server verbunden.
+        <v-alert v-if="error" class="my-4" type="error" variant="tonal" density="compact">
+          {{ error }}
         </v-alert>
-        <v-btn type="submit" class="login-submit mt-4" block size="large" elevation="0">Anmelden</v-btn>
+        <v-btn type="submit" class="login-submit mt-4" block size="large" elevation="0" :loading="loading">Anmelden</v-btn>
       </v-form>
       <p class="login-footer">MKP Diagnostik</p>
     </v-card>
