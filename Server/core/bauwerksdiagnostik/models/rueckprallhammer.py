@@ -33,6 +33,27 @@ class Rueckprallhammer(VorOrtUntersuchung):
     messprotokolle = models.ManyToManyField(
         Media, blank=True, related_name="rueckprallhammer_messprotokolle"
     )
+    # Incremented on every successful submit of the sync endpoint
+    version = models.PositiveIntegerField(default=1)
+
+    # Fields that may be changed via the sync endpoint (no M2M fields)
+    EDITABLE = [
+        "hammertyp",
+        "schlagrichtung",
+        "oberflaecheGeschliffen",
+        "kalibriertAm",
+        "messreihe",
+        "medianRueckprallwert",
+        "datum",
+        "zeit",
+        "bemerkung",
+        "lufttemperatur",
+        "luftfeuchte",
+        "abgeschlossen",
+        "untersuchungsstelle",
+        "projekt",
+        "bauwerk",
+    ]
 
     def __str__(self):
         return f"Rueckprallhammer {str(self.id)}"

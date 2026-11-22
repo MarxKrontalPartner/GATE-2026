@@ -218,3 +218,39 @@ class BaseViewSerializer(serializers.ModelSerializer):
         if isinstance(self._data, dict):
             return ReturnDict(self._data, serializer=self)
         return self._data
+
+
+class SyncPatchSerializer(serializers.Serializer):
+
+    field = serializers.CharField()
+    base = serializers.JSONField(allow_null=True, required=False)
+    new = serializers.JSONField(allow_null=True)
+
+    def validate_field(self, value):
+        if value not in self.context["model"].EDITABLE:
+            raise serializers.ValidationError(f"'{value}' cannot be synced")
+        return value
+
+
+class SyncSubmitListSerializer(serializers.ListSerializer):
+    def validate(self, attrs):
+        ids = [item["id"] for item in attrs]
+        if not ids:
+            raise serializers.ValidationError("This list may not be empty.")
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError("Same id sent twice")
+        return attrs
+
+
+class SyncSubmitSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    patch = SyncPatchSerializer(many=True, allow_empty=False)
+
+    class Meta:
+        list_serializer_class = SyncSubmitListSerializer
+
+    def validate_patch(self, value):
+        names = [op["field"] for op in value]
+        if len(names) != len(set(names)):
+            raise serializers.ValidationError("Same field sent twice")
+        return value
