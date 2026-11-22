@@ -27,7 +27,12 @@ from core.bauwerksdiagnostik.views.untersuchungViews import (
     ImplementedUntersuchungsverfahrenListView,
     UntersuchungsverfahrenViewSet,
 )
-from core.bauwerksdiagnostik.views.baustoffeigenschaftenViews import ProbeViewSet
+from core.bauwerksdiagnostik.views.baustoffeigenschaftenViews import (
+    ChloridanalyseViewSet,
+    DruckfestigkeitspruefungViewSet,
+    ProbeViewSet,
+)
+from core.bauwerksdiagnostik.views.rissbreitenmessungViews import RissbreitenmessungViewSet
 from .views.structure_views import MediaUploadViewSet
 
 router_bwd = DefaultRouter()
@@ -68,6 +73,19 @@ router_bwd.register(r"Kernbohrung", KernbohrungViewSet, basename="KernbohrungVie
 router_bwd.register(r"Bohrkern", BohrkernViewSet, basename="BohrkernViewSet")
 
 router_bwd.register(r"Probe", ProbeViewSet, basename="ProbeViewSet")
+
+# Own endpoints for the remaining forms (list, bulk create, sync)
+router_bwd.register(
+    r"Rissbreitenmessung", RissbreitenmessungViewSet, basename="RissbreitenmessungViewSet"
+)
+router_bwd.register(
+    r"Chloridanalyse", ChloridanalyseViewSet, basename="ChloridanalyseViewSet"
+)
+router_bwd.register(
+    r"Druckfestigkeitspruefung",
+    DruckfestigkeitspruefungViewSet,
+    basename="DruckfestigkeitspruefungViewSet",
+)
 
 bwd_patterns = [
     path(

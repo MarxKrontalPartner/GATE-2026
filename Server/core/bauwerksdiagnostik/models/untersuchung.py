@@ -110,6 +110,21 @@ class Untersuchungsverfahren(BaseModel):
         super().save(*args, **kwargs)
 
 
+# Fields of every Untersuchungsverfahren that may be changed via the sync
+# endpoint (no M2M fields, no media links). Each form adds its own fields.
+UNTERSUCHUNG_EDITABLE = [
+    "datum",
+    "zeit",
+    "bemerkung",
+    "lufttemperatur",
+    "luftfeuchte",
+    "abgeschlossen",
+    "untersuchungsstelle",
+    "projekt",
+    "bauwerk",
+]
+
+
 class VorOrtUntersuchung(Untersuchungsverfahren):
     class Meta(Untersuchungsverfahren.Meta):
         abstract = True

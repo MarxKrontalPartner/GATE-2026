@@ -170,11 +170,17 @@ where E: EntityTrait, C: ConnectionTrait,
     let map = payload.as_object().ok_or("Expected object payload")?;
     let id_col = entity_column::<E>("id")?;
     if let Some(id) = update_id {
-        if E::find().filter(id_col.eq(id)).one(conn).await.map_err(|e| e.to_string())?.is_none() {
+        let Some(existing) = E::find().filter(id_col.eq(id)).one(conn).await.map_err(|e| e.to_string())? else {
             return Err(format!("Record {id} not found"));
-        }
-        let fields = active_input::<E, C>(conn, spec.table, map, false, false).await?;
-        if fields.as_object().is_some_and(|m| m.is_empty()) { return Ok(id); }
+        };
+        let provided = active_input::<E, C>(conn, spec.table, map, false, false).await?;
+        if provided.as_object().is_some_and(|m| m.is_empty()) { return Ok(id); }
+        // A partial update (only changed fields) is laid over the current row:
+        // a SeaORM model cannot be built when a required column (e.g. `datum`)
+        // is missing from the input.
+        let mut merged = entity_json::<E>(&existing)?.as_object().cloned().unwrap_or_default();
+        for (key, value) in map { merged.insert(key.clone(), value.clone()); }
+        let fields = active_input::<E, C>(conn, spec.table, &merged, false, false).await?;
         let mut active = E::ActiveModel::from_json(fields).map_err(|e| e.to_string())?;
         active.try_set(id_col, id.into()).map_err(|e| e.to_string())?;
         active.update(conn).await.map_err(|e| e.to_string())?;
@@ -443,21 +449,157 @@ pub async fn get(db: &DatabaseConnection, spec: DomainResource, id: i64)
 pub async fn create(db: &DatabaseConnection, spec: DomainResource, payload: Value)
     -> Result<Value, String> {
     let txn = db.begin().await.map_err(|e| e.to_string())?;
-    let id = with_domain!(spec.table, write_row, &txn, spec, &payload, None, false)?;
+    let mut id = with_domain!(spec.table, write_row, &txn, spec, &payload, None, false)?;
     if spec.table == "bauwerksdiagnostik_media" { media_child_save(&txn, id, &payload).await?; }
     set_links(&txn, spec, id, payload.as_object().ok_or("Expected object")?, true).await?;
+    // Synced tables are only created locally when offline: the record gets a
+    // temporary negative id (the server assigns the real one), the status "new"
+    // and a "create" row in client_sync_outbox.
+    if crate::services::domain_service::sync_spec(spec.table).is_some() {
+        let temp = next_temp_id(&txn, spec.table).await?;
+        remap_id(&txn, spec, id, temp).await?;
+        crate::repositories::sync_repository::record_create(&txn, spec.table, temp).await?;
+        id = temp;
+    }
     txn.commit().await.map_err(|e| e.to_string())?;
     get(db, spec, id).await
+}
+
+/// Next temporary id for a record created offline: -1, -2, … (never used by the server).
+async fn next_temp_id<C: ConnectionTrait>(conn: &C, table: &str) -> Result<i64, String> {
+    let row = conn.query_one_raw(stmt(format!("SELECT MIN(id) AS lowest FROM {}", quote(table)), vec![]))
+        .await.map_err(|e| e.to_string())?;
+    let lowest: Option<i64> = row.map(|r| r.try_get("", "lowest")).transpose()
+        .map_err(|e| e.to_string())?.flatten();
+    Ok(lowest.unwrap_or(0).min(0) - 1)
+}
+
+/// Changes a record's id everywhere it is stored locally: the record, its link
+/// tables and the sync tables. Used for temporary ids of offline-created
+/// records (local → temporary, temporary → server id).
+pub(crate) async fn remap_id<C: ConnectionTrait>(conn: &C, spec: DomainResource, from: i64, to: i64)
+    -> Result<(), String> {
+    if from == to { return Ok(()); }
+    let exec = |sql: String, args: Vec<DbValue>| conn.execute_raw(stmt(sql, args));
+    exec(format!("UPDATE {} SET \"id\" = ? WHERE \"id\" = ?", quote(spec.table)),
+        vec![to.into(), from.into()]).await.map_err(|e| e.to_string())?;
+    for rel in spec.relations {
+        exec(format!("UPDATE {} SET {} = ? WHERE {} = ?", quote(rel.table), quote(rel.parent_key), quote(rel.parent_key)),
+            vec![to.into(), from.into()]).await.map_err(|e| e.to_string())?;
+    }
+    let (to_pk, from_pk) = (to.to_string(), from.to_string());
+    for (table, pk_col, table_col) in [
+        ("client_record_state", "local_pk", "entity_table"),
+        ("client_sync_outbox", "local_pk", "entity_table"),
+        ("client_sync_changes", "row_pk", "table_name"),
+        ("client_sync_conflicts", "local_pk", "entity_table"),
+    ] {
+        exec(format!("UPDATE {} SET {} = ? WHERE {} = ? AND {} = ?", quote(table), quote(pk_col), quote(table_col), quote(pk_col)),
+            vec![to_pk.clone().into(), spec.table.into(), from_pk.clone().into()]).await.map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 pub async fn update(db: &DatabaseConnection, spec: DomainResource, id: i64, payload: Value)
     -> Result<Value, String> {
     let txn = db.begin().await.map_err(|e| e.to_string())?;
+    let sync = crate::services::domain_service::sync_spec(spec.table);
+    let before = match sync {
+        Some(_) => with_domain!(spec.table, find_one, &txn, id)?,
+        None => None,
+    };
     with_domain!(spec.table, write_row, &txn, spec, &payload, Some(id), false)?;
     if spec.table == "bauwerksdiagnostik_media" { media_child_save(&txn, id, &payload).await?; }
     set_links(&txn, spec, id, payload.as_object().ok_or("Expected object")?, true).await?;
+    // Record the changed sync fields in the outbox, in the same transaction.
+    if let (Some(sync), Some(before)) = (sync, before) {
+        let after = with_domain!(spec.table, find_one, &txn, id)?
+            .ok_or_else(|| format!("Record {id} not found"))?;
+        crate::repositories::sync_repository::record_update(
+            &txn, spec.table, id, sync.fields, &before, &after).await?;
+    }
     txn.commit().await.map_err(|e| e.to_string())?;
     get(db, spec, id).await
+}
+
+/// Writes server data into an existing local row without recording an
+/// outbox entry. Only columns of the table are taken from `row`.
+/// The values are laid over the current local row, because a partial
+/// ActiveModel cannot be built when a required column (e.g. `datum`) is missing.
+pub(crate) async fn apply_server_row<C: ConnectionTrait>(conn: &C, spec: DomainResource,
+    id: i64, row: &Value) -> Result<(), String> {
+    let mut full = with_domain!(spec.table, find_one, conn, id)?
+        .ok_or_else(|| format!("Record {id} not found"))?;
+    let target = full.as_object_mut().ok_or("Expected object row")?;
+    for (key, value) in row.as_object().ok_or("Expected object payload")? {
+        if target.contains_key(key) {
+            target.insert(key.clone(), value.clone());
+        }
+    }
+    with_domain!(spec.table, write_row, conn, spec, &full, Some(id), false)?;
+    Ok(())
+}
+
+/// Result of `mirror`: records written, and records kept as they are locally.
+#[derive(Serialize, Default, Debug)]
+pub struct MirrorResult {
+    pub written: usize,
+    /// `{ "id": 1, "reason": "changes" | "conflict" }` for every record not overwritten.
+    pub skipped: Vec<Value>,
+}
+
+/// Saves records the server returned into the local database, so the app
+/// reads them locally. Never records change rows. Links (Bilder, Bearbeiter, …)
+/// are saved when all their targets exist locally.
+///
+/// - Download (`online_save = false`): records with unsent offline changes or
+///   an open conflict are not overwritten; they are reported in `skipped`.
+/// - Online save (`online_save = true`): the user just saved this record on the
+///   server, so the local copy is overwritten and its unsent changes removed.
+pub async fn mirror(db: &DatabaseConnection, spec: DomainResource, records: Vec<Value>,
+    online_save: bool) -> Result<MirrorResult, String> {
+    use crate::repositories::sync_repository;
+    let mut result = MirrorResult::default();
+    // Media rows need their file contents; they are not mirrored here.
+    if spec.table == "bauwerksdiagnostik_media" { return Ok(result); }
+    let synced = crate::services::domain_service::sync_spec(spec.table).is_some();
+    for record in &records {
+        let id = record.get("id").and_then(Value::as_i64).ok_or("Mirror requires an id")?;
+        let txn = db.begin().await.map_err(|e| e.to_string())?;
+        if synced && !online_save {
+            if let Some(reason) = sync_repository::keep_local_reason(&txn, spec.table, id).await? {
+                txn.rollback().await.map_err(|e| e.to_string())?;
+                result.skipped.push(serde_json::json!({ "id": id, "reason": reason }));
+                continue;
+            }
+        }
+        if with_domain!(spec.table, find_one, &txn, id)?.is_some() {
+            apply_server_row(&txn, spec, id, record).await?;
+        } else {
+            with_domain!(spec.table, write_row, &txn, spec, record, None, true)?;
+        }
+        if synced {
+            if online_save {
+                sync_repository::clear_changes(&txn, spec.table, id).await?;
+                sync_repository::resolve_conflicts_by_online_save(&txn, spec.table, id).await?;
+            }
+            sync_repository::settle_after_server_write(
+                &txn, spec.table, id, record.get("version").and_then(Value::as_i64)).await?;
+        }
+        txn.commit().await.map_err(|e| e.to_string())?;
+        result.written += 1;
+
+        // Separate transaction: a link to a record that is not in the local
+        // database must not undo the saved row itself.
+        if let Some(obj) = record.as_object() {
+            let txn = db.begin().await.map_err(|e| e.to_string())?;
+            match set_links(&txn, spec, id, obj, true).await {
+                Ok(()) => { let _ = txn.commit().await; }
+                Err(_) => { let _ = txn.rollback().await; }
+            }
+        }
+    }
+    Ok(result)
 }
 
 pub async fn delete(db: &DatabaseConnection, spec: DomainResource, id: i64)
@@ -547,6 +689,11 @@ pub async fn import(db: &DatabaseConnection, spec: DomainResource, records: Vec<
         let id = with_domain!(spec.table, write_row, &txn, spec, record, None, true)?;
         if spec.table == "bauwerksdiagnostik_media" {
             media_child_save(&txn, id, record).await?;
+        }
+        // Remember the server version as the base for later sync patches.
+        if crate::services::domain_service::sync_spec(spec.table).is_some() {
+            crate::repositories::sync_repository::mark_synced(
+                &txn, spec.table, id, record.get("version").and_then(Value::as_i64)).await?;
         }
     }
     txn.commit().await.map_err(|e| e.to_string())?;

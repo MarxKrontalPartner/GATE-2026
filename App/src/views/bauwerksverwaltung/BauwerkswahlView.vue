@@ -36,7 +36,7 @@
       aria-label="Zuletzt geöffnetes Bauwerk">
       <h2 class="gate-dashboard-section__title">Zuletzt geöffnet</h2>
       <DashboardBauwerkCard :bauwerk="lastOpened" :project-names="projectNames(lastOpened.projektIds)"
-        recent @open="openBauwerk" @action="showActionNotice" />
+        recent :busy="downloadingId === lastOpened.id" @open="openBauwerk" @action="onCardAction" />
     </section>
 
     <section class="gate-dashboard-section" aria-labelledby="gate-bauwerke-heading">
@@ -66,7 +66,7 @@
         </GateActionButton>
       </div>
       <DashboardBauwerkList :bauwerke="filteredLocal" :available="filteredServer"
-        :project-names="projectNames" @open="openBauwerk" @action="showActionNotice" />
+        :project-names="projectNames" :busy-id="downloadingId" @open="openBauwerk" @action="onCardAction" />
       <div class="gate-dashboard-import">
         <OfflinePreparationAction @prepared="onPrepared" />
         <p>Vorbereiten lädt die Serverdaten einmalig herunter; es ist keine Synchronisierung.</p>
@@ -96,6 +96,12 @@ import DashboardBauwerkCard from '@/components/dashboard/DashboardBauwerkCard.vu
 import DashboardBauwerkList from '@/components/dashboard/DashboardBauwerkList.vue';
 import BauwerkCreateCard from '@/components/bauwerkCards/BauwerkCreateCard.vue';
 import FeedbackFeedComponent from '@/components/FeedbackFeedComponent.vue';
+import { downloadBauwerk } from '@/services/offlinePreparation';
+import { syncAll } from '@/services/syncService';
+import { isServerOnline } from '@/services/connectivity';
+import { getErrorMessage } from '@/utils/errors';
+import { getMethodDisplayName } from '@/utils/UntersuchungsverfahrenRegistry';
+import type { KeptRecord } from '@/repositories/localDomainRepository';
 
 const router = useRouter();
 const dashboard = useDashboardStore();
@@ -116,6 +122,66 @@ async function openBauwerk(id: number) {
   try { await dashboard.markOpened(id); }
   catch (cause) { console.warn('Last-opened timestamp not saved', cause); }
   await router.push({ name: 'BauwerkUebersicht', params: { bauwerkId: String(id) } });
+}
+const downloadingId = ref<number | null>(null);
+async function onCardAction(action: string, name: string, id: number) {
+  if (action === 'Synchronisieren' || action === 'Aktualisieren') return synchronize(name, id);
+  if (action !== 'Herunterladen') return showActionNotice(action, name);
+  if (downloadingId.value !== null) return;
+  downloadingId.value = id;
+  try {
+    if (!(await isServerOnline(true))) throw new Error('Keine Verbindung zum Server.');
+    const { records, files, kept } = await downloadBauwerk(id);
+    snackbarText.value = `„${name}“ wurde heruntergeladen (${records} Datensätze, ${files} Dateien) und ist jetzt offline verfügbar.`
+      + keptNotice(kept);
+    await onPrepared();
+  } catch (cause) {
+    snackbarText.value = `Herunterladen von „${name}“ fehlgeschlagen: ${getErrorMessage(cause, 'Unbekannter Fehler')}`;
+  } finally {
+    downloadingId.value = null;
+    snackbarVisible.value = true;
+  }
+}
+/** Sends the offline changes (client_sync_changes) to the server. */
+async function synchronize(name: string, id: number) {
+  if (downloadingId.value !== null) return;
+  downloadingId.value = id;
+  try {
+    if (!(await isServerOnline(true))) throw new Error('Keine Verbindung zum Server.');
+    // 1. Send the offline changes.
+    const results = await syncAll();
+    const sent = results.reduce((n, r) => n + r.sent, 0);
+    const created = results.reduce((n, r) => n + r.created, 0);
+    const conflicts = results.reduce((n, r) => n + r.conflicts, 0);
+    const failed = results.some((r) => r.failed);
+    // 2. Download everything else of this Bauwerk from the server. Rows with
+    //    unsent changes or a conflict are kept as they are and listed.
+    const { records, kept } = await downloadBauwerk(id);
+    const parts = [
+      ...(created ? [`${created} neue Messung(en) angelegt`] : []),
+      !sent ? (created ? 'keine weiteren Änderungen' : 'keine offline Änderungen')
+        : failed ? 'einige Änderungen konnten nicht übertragen werden'
+        : `${sent - conflicts} Messung(en) übertragen`,
+      ...(conflicts ? [`${conflicts} Konflikt(e) – auf dem Server inzwischen geändert`] : []),
+      `${records} Datensätze vom Server aktualisiert`,
+    ];
+    // At least one conflict: the Bauwerk is not synchronized but in conflict.
+    snackbarText.value = (conflicts ? `„${name}“: Konflikt – nicht vollständig synchronisiert: `
+      : `„${name}“ synchronisiert: `) + `${parts.join(', ')}.` + keptNotice(kept);
+    await dashboard.loadLocal();
+  } catch (cause) {
+    snackbarText.value = `Synchronisieren von „${name}“ fehlgeschlagen: ${getErrorMessage(cause, 'Unbekannter Fehler')}`;
+  } finally {
+    downloadingId.value = null;
+    snackbarVisible.value = true;
+  }
+}
+/** Lists the rows a download did not overwrite, e.g. " Nicht überschrieben: Rückprallhammer #1 (…)." */
+function keptNotice(kept: Array<KeptRecord & { resource: string }>): string {
+  if (!kept.length) return '';
+  const rows = kept.map((row) => `${getMethodDisplayName(row.resource)} #${row.id} (` +
+    (row.reason === 'changes' ? 'lokale Änderungen, noch nicht synchronisiert' : 'Konflikt') + ')');
+  return ` Nicht überschrieben: ${rows.join(', ')}.`;
 }
 function showActionNotice(action: string, name: string) {
   snackbarText.value = `${action} für „${name}“ ist noch nicht implementiert. ` +

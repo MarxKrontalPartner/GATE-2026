@@ -133,6 +133,9 @@
           </v-col>
         </v-row>
 
+        <SyncConflictNotice table="bauwerksdiagnostik_druckfestigkeitspruefung" :record-id="currentUntersuchung.id"
+          :version="currentUntersuchung" />
+
       </v-container>
     </template>
   </GenericDetailView>
@@ -149,6 +152,7 @@ import GenericDetailView from '@/views/bwd/Untersuchungsverfahren/GenericDetailV
 import UntersuchungInfoCard from '@/components/bwd/UntersuchungInfoCard.vue';
 import NumberField from '@/components/bwd/NumberField.vue';
 import ChoiceSelect, { type ChoiceOption } from '@/components/bwd/ChoiceSelect.vue';
+import SyncConflictNotice from '@/components/bwd/SyncConflictNotice.vue';
 import SingleFileField from '@/components/bwd/SingleFileField.vue';
 import { apiConnector } from '@/utils/ApiConnector';
 

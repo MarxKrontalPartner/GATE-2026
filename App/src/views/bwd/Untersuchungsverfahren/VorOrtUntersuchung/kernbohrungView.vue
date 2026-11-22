@@ -60,11 +60,7 @@
                   @click="createCore">{{ pendingCore || recoveryMode ? 'Bohrkern verknüpfen' : 'Bohrkern anlegen' }}</GateActionButton>
               </v-col>
             </v-row>
-            <GateActionButton v-if="localMode()" intent="quiet" class="mt-2" :disabled="creatingCore"
-              @click="recoveryMode = !recoveryMode; coreError = ''">
-              {{ recoveryMode ? 'Neuen Bohrkern anlegen' : 'Bereits angelegten Bohrkern verknüpfen' }}
-            </GateActionButton>
-            <p class="text-medium-emphasis mt-1">Der Bohrkern wird lokal gespeichert und in einer Datenbanktransaktion mit der Kernbohrung verknüpft.</p>
+            <p class="text-medium-emphasis mt-1">Der Bohrkern wird auf dem Server angelegt, mit der Kernbohrung verknüpft und in die App-Datenbank übernommen. Dafür ist eine Serververbindung nötig.</p>
           </template>
         </template>
       </GateFormSection>
@@ -72,6 +68,8 @@
         <UntersuchungsImageCard :images="Array.isArray(currentUntersuchung.bilder) ? currentUntersuchung.bilder : []"
           :enabled="editing" />
       </GateFormSection>
+      <SyncConflictNotice table="bauwerksdiagnostik_kernbohrung" :record-id="currentUntersuchung.id"
+        :version="currentUntersuchung" />
     </div>
 
     <div class="gate-kernbohrung-page__footer">
@@ -97,7 +95,6 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { mdiArrowLeft, mdiPencil, mdiContentSaveAll, mdiClipboardTextOutline, mdiPlus, mdiDelete, mdiImage } from '@mdi/js';
@@ -108,10 +105,12 @@ import KernbohrungDrillFields from '@/components/investigations/KernbohrungDrill
 import KernbohrungLayers from '@/components/investigations/KernbohrungLayers.vue';
 import NumberField from '@/components/bwd/NumberField.vue';
 import MaterialsSelect from '@/components/bwd/MaterialsSelect.vue';
+import SyncConflictNotice from '@/components/bwd/SyncConflictNotice.vue';
 import UntersuchungsImageCard from '@/components/bwd/media/UntersuchungsImageCard.vue';
 import { useUntersuchungenStore } from '@/store/bwd/UntersuchungsverfahrenStore';
 import { apiConnector } from '@/utils/ApiConnector';
 import { localMode } from '@/repositories/localDomainRepository';
+import { isServerOnline, OfflineWriteError } from '@/services/connectivity';
 import { getErrorMessage } from '@/utils/errors';
 import { kernbohrungPatch, toKernbohrungDraft, validateKernbohrungDraft, kernbohrungPersistenceDifferences } from '@/types/kernbohrung';
 import type { KernbohrungDraft } from '@/types/kernbohrung';
@@ -203,7 +202,9 @@ async function saveChanges() {
   }
   saving.value = true;
   try {
-    if (core.value) {
+    // The Bohrkern is only saved when it changed (it is not synced: changing it
+    // needs a server connection; the Kernbohrung itself can be saved offline).
+    if (core.value && JSON.stringify(core.value) !== JSON.stringify(coreBackup.value)) {
       await apiConnector.patchxResource('bwd', 'Bohrkern', {
         name: core.value.name,
         anzahlProben: core.value.anzahlProben === null ? null : Number(core.value.anzahlProben),
@@ -242,24 +243,14 @@ async function createCore() {
   coreError.value = '';
   coreSuccess.value = '';
   try {
-    let created: Bohrkern;
-    if (localMode()) {
-      // One SeaORM/SQLite transaction: no orphan core on a failed link.
-      const existingId = pendingCore.value?.id ?? (recoveryMode.value ? recoveryCoreId.value : null);
-      created = await invoke<Bohrkern>('local_create_or_link_bohrkern', {
-        kernbohrungId: investigationId,
-        name: newCoreName.value.trim(),
-        existingBohrkernId: existingId,
-      });
-    } else {
-      // Browser/Django fallback pending a server-side atomic endpoint.
-      created = pendingCore.value ?? await store.createBohrkern(newCoreName.value.trim()) as Bohrkern;
-      pendingCore.value = created;
-      try {
-        await store.updateUntersuchung(investigationId, 'kernbohrung', { bohrkern: Number(created.id) });
-      } catch (cause) {
-        throw new Error(`Bohrkern ID ${created.id} wurde angelegt, aber die Verknüpfung ist fehlgeschlagen: ${getErrorMessage(cause, 'Speicherfehler')}`);
-      }
+    // Created on the server (and copied into the app database); not possible offline.
+    if (localMode() && !(await isServerOnline())) throw new OfflineWriteError('Bohrkern', 'create');
+    const created = pendingCore.value ?? await store.createBohrkern(newCoreName.value.trim()) as Bohrkern;
+    pendingCore.value = created;
+    try {
+      await store.updateUntersuchung(investigationId, 'kernbohrung', { bohrkern: Number(created.id) });
+    } catch (cause) {
+      throw new Error(`Bohrkern ID ${created.id} wurde angelegt, aber die Verknüpfung ist fehlgeschlagen: ${getErrorMessage(cause, 'Speicherfehler')}`);
     }
     // Confirm both the row and the foreign key after the transaction.
     const refreshed = await apiConnector.BWD.fetchUntersuchungDetailData(

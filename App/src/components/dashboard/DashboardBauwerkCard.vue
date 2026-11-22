@@ -25,7 +25,7 @@
           {{ bauwerk.archived ? 'Ansehen' : 'Öffnen' }}
         </GateActionButton>
         <GateActionButton v-if="actionLabel" :intent="primaryStatus === 'conflict' ? 'danger' : 'primary'"
-          @click="emit('action', actionLabel, bauwerk.bezeichnung)">
+          :loading="busy" :disabled="busy" @click="emit('action', actionLabel, bauwerk.bezeichnung, bauwerk.id)">
           {{ actionLabel }}
         </GateActionButton>
       </div>
@@ -41,8 +41,9 @@ const props = withDefaults(defineProps<{
   projectNames: string;
   recent?: boolean;
   isAvailable?: boolean;
-}>(), { recent: false, isAvailable: false });
-const emit = defineEmits<{ open: [id: number]; action: [action: string, name: string] }>();
+  busy?: boolean;
+}>(), { recent: false, isAvailable: false, busy: false });
+const emit = defineEmits<{ open: [id: number]; action: [action: string, name: string, id: number] }>();
 const primaryStatus = computed<GateStatus>(() => {
   if (props.isAvailable) return 'download-available';
   const item = props.bauwerk as DashboardBauwerk;

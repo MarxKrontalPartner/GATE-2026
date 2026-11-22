@@ -42,6 +42,14 @@ pub async fn local_delete(db: State<'_, ClientDb>, resource: String, id: i64) ->
 pub async fn local_import(db: State<'_, ClientDb>, resource: String, records: Vec<Value>) -> Result<usize,String> {
     repo::import(&db.0, domain_service::resource(&resource)?, records).await
 }
+/// Saves records returned by the server into the app database.
+/// `online_save`: true after the user saved online (overwrite, clear unsent changes),
+/// false for downloads (records with unsent changes or a conflict are kept).
+#[tauri::command]
+pub async fn local_mirror(db: State<'_, ClientDb>, resource: String, records: Vec<Value>,
+    online_save: Option<bool>) -> Result<repo::MirrorResult,String> {
+    repo::mirror(&db.0, domain_service::resource(&resource)?, records, online_save.unwrap_or(false)).await
+}
 #[tauri::command]
 pub async fn local_import_links(db: State<'_, ClientDb>, resource: String, records: Vec<Value>) -> Result<(),String> {
     repo::import_links(&db.0, domain_service::resource(&resource)?, records).await

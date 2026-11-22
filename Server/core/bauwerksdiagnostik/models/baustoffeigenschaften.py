@@ -6,6 +6,7 @@ from core.assetverwaltung.models.assetverwaltung_models import BaseModel
 from core.assetverwaltung.models.bauwerksverwaltung_models import Bauwerk, Projekt
 from core.bauwerksdiagnostik.models.algemein import Media
 from core.bauwerksdiagnostik.models.untersuchung import (
+    UNTERSUCHUNG_EDITABLE,
     Untersuchungsverfahren,
     VorOrtUntersuchung,
 )
@@ -70,6 +71,18 @@ class Chloridanalyse(VorOrtUntersuchung):
     chloridgehaltZement = models.FloatField(blank=True, null=True)  # M.-% bez. Zement
     zementgehaltAnnahme = models.FloatField(blank=True, null=True)  # kg/m³
     grenzwertUeberschritten = models.BooleanField(blank=True, null=True)
+    # Incremented on every successful submit of the sync endpoint
+    version = models.PositiveIntegerField(default=1)
+
+    # Fields that may be changed via the sync endpoint (no M2M fields)
+    EDITABLE = UNTERSUCHUNG_EDITABLE + [
+        "probe",
+        "pruefstelle",
+        "analyseverfahren",
+        "chloridgehaltZement",
+        "zementgehaltAnnahme",
+        "grenzwertUeberschritten",
+    ]
     pruefberichte = models.ManyToManyField(
         Media, blank=True, related_name="chloridanalyse_pruefberichte"
     )
@@ -96,6 +109,18 @@ class Druckfestigkeitspruefung(Laboruntersuchung):
     bruchlast = models.FloatField(blank=True, null=True)  # kN
     druckfestigkeit = models.FloatField(blank=True, null=True)  # N/mm²
     bruchbild = models.CharField(max_length=20, blank=True, choices=Bruchbild.choices)
+    # Incremented on every successful submit of the sync endpoint
+    version = models.PositiveIntegerField(default=1)
+
+    # Fields that may be changed via the sync endpoint (no M2M fields, no media)
+    EDITABLE = UNTERSUCHUNG_EDITABLE + [
+        "probe",
+        "pruefalter",
+        "lagerung",
+        "bruchlast",
+        "druckfestigkeit",
+        "bruchbild",
+    ]
     pruefbericht = models.ForeignKey(
         Media,
         on_delete=models.SET_NULL,

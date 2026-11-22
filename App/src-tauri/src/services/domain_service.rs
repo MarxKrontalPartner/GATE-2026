@@ -73,6 +73,75 @@ pub fn resource(name: &str) -> Result<DomainResource, String> {
     Ok(DomainResource { table, relations })
 }
 
+/// Field-level sync configuration for one domain table.
+/// `fields` must match the server model's `EDITABLE` list (API names, no M2M).
+#[derive(Clone, Copy)]
+pub struct SyncSpec {
+    /// Path of the Django sync action, relative to the API base URL.
+    pub endpoint: &'static str,
+    /// Path for creating records (POST, accepts a list), relative to the API base URL.
+    pub create_endpoint: &'static str,
+    pub fields: &'static [&'static str],
+}
+
+// Sync field lists: must match the server models' EDITABLE lists (API names,
+// no M2M fields, no media links). Common fields first, then the form's own.
+const RUECK_SYNC_FIELDS: &[&str] = &[
+    "hammertyp", "schlagrichtung", "oberflaecheGeschliffen", "kalibriertAm",
+    "messreihe", "medianRueckprallwert", "datum", "zeit", "bemerkung",
+    "lufttemperatur", "luftfeuchte", "abgeschlossen",
+    "untersuchungsstelle", "projekt", "bauwerk",
+];
+const KERN_SYNC_FIELDS: &[&str] = &[
+    "datum", "zeit", "bemerkung", "lufttemperatur", "luftfeuchte", "abgeschlossen",
+    "untersuchungsstelle", "projekt", "bauwerk",
+    "durchmesser", "bohrlaenge", "neigungswinkel", "kuehlung", "verschlussmaterial",
+    "bohrkern", "schichtaufbau", "bewehrungAngeschnitten", "kernVollstaendig",
+];
+const RISS_SYNC_FIELDS: &[&str] = &[
+    "datum", "zeit", "bemerkung", "lufttemperatur", "luftfeuchte", "abgeschlossen",
+    "untersuchungsstelle", "projekt", "bauwerk",
+    "messmittel", "risse", "maxRissbreite", "monitoringEmpfohlen",
+];
+const CHLOR_SYNC_FIELDS: &[&str] = &[
+    "datum", "zeit", "bemerkung", "lufttemperatur", "luftfeuchte", "abgeschlossen",
+    "untersuchungsstelle", "projekt", "bauwerk",
+    "probe", "pruefstelle", "analyseverfahren", "chloridgehaltZement",
+    "zementgehaltAnnahme", "grenzwertUeberschritten",
+];
+const DRUCK_SYNC_FIELDS: &[&str] = &[
+    "datum", "zeit", "bemerkung", "lufttemperatur", "luftfeuchte", "abgeschlossen",
+    "untersuchungsstelle", "projekt", "bauwerk",
+    "probe", "pruefalter", "lagerung", "bruchlast", "druckfestigkeit", "bruchbild",
+];
+
+/// All tables that are synchronized field by field (offline edit and create).
+pub const SYNCED_TABLES: &[&str] = &[
+    "bauwerksdiagnostik_rueckprallhammer",
+    "bauwerksdiagnostik_kernbohrung",
+    "bauwerksdiagnostik_rissbreitenmessung",
+    "bauwerksdiagnostik_chloridanalyse",
+    "bauwerksdiagnostik_druckfestigkeitspruefung",
+];
+
+/// Tables whose local edits are recorded in the outbox and sent as patches.
+pub fn sync_spec(table: &str) -> Option<SyncSpec> {
+    let (endpoint, create_endpoint, fields) = match table {
+        "bauwerksdiagnostik_rueckprallhammer" =>
+            ("bwd/RueckprallHammer/sync/", "bwd/RueckprallHammer/", RUECK_SYNC_FIELDS),
+        "bauwerksdiagnostik_kernbohrung" =>
+            ("bwd/Kernbohrung/sync/", "bwd/Kernbohrung/", KERN_SYNC_FIELDS),
+        "bauwerksdiagnostik_rissbreitenmessung" =>
+            ("bwd/Rissbreitenmessung/sync/", "bwd/Rissbreitenmessung/", RISS_SYNC_FIELDS),
+        "bauwerksdiagnostik_chloridanalyse" =>
+            ("bwd/Chloridanalyse/sync/", "bwd/Chloridanalyse/", CHLOR_SYNC_FIELDS),
+        "bauwerksdiagnostik_druckfestigkeitspruefung" =>
+            ("bwd/Druckfestigkeitspruefung/sync/", "bwd/Druckfestigkeitspruefung/", DRUCK_SYNC_FIELDS),
+        _ => return None,
+    };
+    Some(SyncSpec { endpoint, create_endpoint, fields })
+}
+
 pub fn json_field(name: &str) -> bool {
     matches!(name, "risse" | "messreihe" | "schichtaufbau" | "historie" | "drawing" | "exif" | "measurement_data")
 }

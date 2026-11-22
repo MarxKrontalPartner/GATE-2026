@@ -35,6 +35,20 @@ export async function importLocal(resource: string, records: LocalRecord[]): Pro
   ensureNative();
   return invoke<number>('local_import', { resource, records });
 }
+/** A record a download did not overwrite: unsent offline changes, or an open conflict. */
+export interface KeptRecord { id: number; reason: 'changes' | 'conflict' }
+export interface MirrorResult { written: number; skipped: KeptRecord[] }
+
+/**
+ * Saves records returned by the server into the app database.
+ * `onlineSave`: true after the user saved online (overwrites the local copy and
+ * clears its unsent changes); false for downloads (records with unsent changes
+ * or a conflict are kept and returned in `skipped`).
+ */
+export async function mirrorLocal(resource: string, records: LocalRecord[], onlineSave = false): Promise<MirrorResult> {
+  ensureNative();
+  return invoke<MirrorResult>('local_mirror', { resource, records, onlineSave });
+}
 export async function importLocalLinks(resource: string, records: LocalRecord[]): Promise<void> {
   ensureNative();
   await invoke('local_import_links', { resource, records });

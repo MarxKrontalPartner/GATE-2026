@@ -24,6 +24,7 @@ pub fn run() {
             commands::local_data::local_delete,
             commands::local_data::local_import,
             commands::local_data::local_import_links,
+            commands::local_data::local_mirror,
             commands::local_data::local_save_media,
             commands::local_data::local_attach_media,
             commands::local_data::local_read_media,
@@ -32,6 +33,11 @@ pub fn run() {
             commands::dashboard::dashboard_record_baselines,
             commands::dashboard::dashboard_record_server_check,
             commands::dashboard::dashboard_record_opened,
+            commands::sync::sync_take_pending,
+            commands::sync::sync_apply,
+            commands::sync::sync_list_conflicts,
+            commands::sync::sync_take_creates,
+            commands::sync::sync_apply_creates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

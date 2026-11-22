@@ -100,6 +100,9 @@
           </v-col>
         </v-row>
 
+        <SyncConflictNotice table="bauwerksdiagnostik_rueckprallhammer" :record-id="currentUntersuchung.id"
+          :version="currentUntersuchung" />
+
       </v-container>
 
 
@@ -118,6 +121,7 @@ import UntersuchungInfoCard from '@/components/bwd/UntersuchungInfoCard.vue';
 import MultiFileField from '@/components/bwd/MultiFileField.vue';
 import NumberField from '@/components/bwd/NumberField.vue';
 import ChoiceSelect, { type ChoiceOption } from '@/components/bwd/ChoiceSelect.vue';
+import SyncConflictNotice from '@/components/bwd/SyncConflictNotice.vue';
 import { useUntersuchungenStore } from '@/store/bwd/UntersuchungsverfahrenStore';
 import { apiConnector } from '@/utils/ApiConnector';
 import { median } from '@/utils/messwerte';

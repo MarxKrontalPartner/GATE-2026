@@ -39,6 +39,7 @@ pub mod client_cached_projects;
 pub mod client_device_context;
 pub mod client_media_transfers;
 pub mod client_record_state;
+pub mod client_sync_changes;
 pub mod client_sync_conflicts;
 pub mod client_sync_cursors;
 pub mod client_sync_outbox;

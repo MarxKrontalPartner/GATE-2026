@@ -11,6 +11,7 @@ use crate::entities::{
     assetverwaltung_bauwerk as bauwerk,
     assetverwaltung_bauwerk_projekt as bauwerk_projekt,
     client_record_state as record_state,
+    client_sync_changes as changes,
     client_sync_conflicts as conflicts,
     client_dashboard_bauwerk_baseline as baseline,
     client_dashboard_available_bauwerk as available,
@@ -82,6 +83,19 @@ fn local_snapshot(item: &bauwerk::Model, projects: &[i64]) -> Result<String, Str
     }))
 }
 
+/// (record id, bauwerk id) of all records of a synced form table.
+/// `table` comes from the fixed SYNCED_TABLES list, never from user input.
+async fn record_bauwerke(db: &DatabaseConnection, table: &str) -> Result<Vec<(i64, i64)>, String> {
+    use sea_orm::{ConnectionTrait, DbBackend, Statement};
+    let rows = db.query_all_raw(Statement::from_string(DbBackend::Sqlite,
+        format!("SELECT \"id\", \"bauwerk_id\" FROM \"{table}\" WHERE \"bauwerk_id\" IS NOT NULL")))
+        .await.map_err(|e| e.to_string())?;
+    rows.iter().map(|row| Ok((
+        row.try_get::<i64>("", "id").map_err(|e| e.to_string())?,
+        row.try_get::<i64>("", "bauwerk_id").map_err(|e| e.to_string())?,
+    ))).collect()
+}
+
 pub async fn snapshot(db: &DatabaseConnection) -> Result<DashboardSnapshot, String> {
     // Load complete entities: adding a field never requires adjusting SELECT lists.
     let items = bauwerk::Entity::find().all(db).await.map_err(|e| e.to_string())?;
@@ -98,6 +112,33 @@ pub async fn snapshot(db: &DatabaseConnection) -> Result<DashboardSnapshot, Stri
     let remote = available::Entity::find().all(db).await.map_err(|e| e.to_string())?;
     let last_server_check = meta::Entity::find_by_id("last_server_check".to_string())
         .one(db).await.map_err(|e| e.to_string())?.map(|item| item.value);
+    // Per synced form table: Bauwerke with offline changes not yet sent
+    // (client_sync_changes), records created offline (status "new"), or open
+    // conflicts from the last sync.
+    let mut offline_changed: HashSet<i64> = HashSet::new();
+    let mut sync_conflicts: HashSet<i64> = HashSet::new();
+    for table in crate::services::domain_service::SYNCED_TABLES {
+        let mut changed: HashSet<String> = changes::Entity::find()
+            .filter(changes::Column::TableName.eq(*table))
+            .all(db).await.map_err(|e| e.to_string())?
+            .into_iter().map(|row| row.row_pk).collect();
+        changed.extend(record_state::Entity::find()
+            .filter(record_state::Column::EntityTable.eq(*table))
+            .filter(record_state::Column::SyncStatus.eq("new"))
+            .all(db).await.map_err(|e| e.to_string())?
+            .into_iter().map(|row| row.local_pk));
+        let conflicting: HashSet<String> = conflicts::Entity::find()
+            .filter(conflicts::Column::EntityTable.eq(*table))
+            .filter(conflicts::Column::Status.eq("unresolved"))
+            .all(db).await.map_err(|e| e.to_string())?
+            .into_iter().map(|row| row.local_pk).collect();
+        if changed.is_empty() && conflicting.is_empty() { continue; }
+        for (id, bauwerk_id) in record_bauwerke(db, table).await? {
+            let pk = id.to_string();
+            if changed.contains(&pk) { offline_changed.insert(bauwerk_id); }
+            if conflicting.contains(&pk) { sync_conflicts.insert(bauwerk_id); }
+        }
+    }
 
     let mut projects: HashMap<i64, Vec<i64>> = HashMap::new();
     for link in links { projects.entry(link.bauwerk_id).or_default().push(link.projekt_id); }
@@ -116,8 +157,9 @@ pub async fn snapshot(db: &DatabaseConnection) -> Result<DashboardSnapshot, Stri
         let saved = baseline_map.get(&id);
         let local_diff = saved.map(|b| local_snapshot(&item, projects.get(&id).map(Vec::as_slice).unwrap_or(&[]))
             .map(|current| current != b.server_snapshot_json)).transpose()?.unwrap_or(false);
-        let pending = state_map.get(&id.to_string()).is_some_and(|s| s.sync_status != "synced");
-        let conflict = conflict_ids.contains(&id.to_string());
+        let pending = state_map.get(&id.to_string()).is_some_and(|s| s.sync_status != "synced")
+            || offline_changed.contains(&id);
+        let conflict = conflict_ids.contains(&id.to_string()) || sync_conflicts.contains(&id);
         let sync_status = if conflict { "conflict" }
             else if saved.is_none() || local_diff || pending { "unsynced" }
             else { "synced" };
@@ -149,7 +191,7 @@ pub async fn record_baselines(db: &DatabaseConnection, incoming: Vec<Value>) -> 
     let mut recorded = 0;
     for obj in incoming {
         let id = obj["id"].as_i64().ok_or("Bauwerk missing id")?;
-        if baseline::Entity::find_by_id(id).one(&txn).await.map_err(|e| e.to_string())?.is_some() { continue; }
+        let existing = baseline::Entity::find_by_id(id).one(&txn).await.map_err(|e| e.to_string())?;
         let Some(local) = bauwerk::Entity::find_by_id(id).one(&txn).await.map_err(|e| e.to_string())? else { continue; };
         let links = bauwerk_projekt::Entity::find()
             .filter(bauwerk_projekt::Column::BauwerkId.eq(id))
@@ -160,11 +202,22 @@ pub async fn record_baselines(db: &DatabaseConnection, incoming: Vec<Value>) -> 
         if record_state::Entity::find_by_id((BAUWERK_TABLE.to_string(), id.to_string()))
             .one(&txn).await.map_err(|e| e.to_string())?
             .is_some_and(|s| s.sync_status != "synced") { continue; }
-        baseline::ActiveModel {
-            bauwerk_id: Set(id), server_snapshot_json: Set(server_snapshot(&obj)?),
-            downloaded_at: Set(timestamp()), last_checked_at: Set(None),
-            server_update_available: Set(false), seen_at: Set(Some(timestamp())),
-        }.insert(&txn).await.map_err(|e| e.to_string())?;
+        if let Some(existing) = existing {
+            // Downloaded again (e.g. after "Synchronisieren"): the local copy is the
+            // current server state, so the stored baseline is refreshed.
+            let mut active = existing.into_active_model();
+            active.server_snapshot_json = Set(server_snapshot(&obj)?);
+            active.downloaded_at = Set(timestamp());
+            active.server_update_available = Set(false);
+            active.seen_at = Set(Some(timestamp()));
+            active.update(&txn).await.map_err(|e| e.to_string())?;
+        } else {
+            baseline::ActiveModel {
+                bauwerk_id: Set(id), server_snapshot_json: Set(server_snapshot(&obj)?),
+                downloaded_at: Set(timestamp()), last_checked_at: Set(None),
+                server_update_available: Set(false), seen_at: Set(Some(timestamp())),
+            }.insert(&txn).await.map_err(|e| e.to_string())?;
+        }
         recorded += 1;
     }
     txn.commit().await.map_err(|e| e.to_string())?;
@@ -298,6 +351,74 @@ mod tests {
 
             record_opened(&db, 1).await.unwrap();
             assert!(snapshot(&db).await.unwrap().bauwerke[0].last_opened_at.is_some());
+        });
+    }
+
+    #[test]
+    fn downloading_again_refreshes_baseline() {
+        tauri::async_runtime::block_on(async {
+            let pool = SqlitePoolOptions::new().max_connections(1)
+                .connect_with(SqliteConnectOptions::new().in_memory(true))
+                .await.expect("test sqlite");
+            sqlx::migrate!("./migrations").run(&pool).await.expect("migrations");
+            let db = SqlxSqliteConnector::from_sqlx_sqlite_pool(pool);
+            bauwerk::ActiveModel {
+                id: Set(1), bezeichnung: Set("Demo".into()), archived: Set(false),
+                beschreibung: Set("".into()), strasse: Set("".into()),
+                bauweise: Set("Stahlbeton".into()), bauwerksnummer: Set("DEMO-01".into()),
+                bauwerkstyp: Set(None), bemerkung: Set(None),
+            }.insert(&db).await.expect("local Bauwerk");
+            record_baselines(&db, vec![remote(1, "Demo")]).await.unwrap();
+            record_server_check(&db, vec![remote(1, "Neu")]).await.unwrap();
+            assert!(snapshot(&db).await.unwrap().bauwerke[0].server_update_available);
+
+            // The download wrote the new server values locally, then records the baseline again.
+            let mut local = bauwerk::Entity::find_by_id(1).one(&db).await.unwrap().unwrap().into_active_model();
+            local.bezeichnung = Set("Neu".into());
+            local.update(&db).await.unwrap();
+            assert_eq!(record_baselines(&db, vec![remote(1, "Neu")]).await.unwrap(), 1);
+            let after = snapshot(&db).await.unwrap();
+            assert!(!after.bauwerke[0].server_update_available);
+            assert_eq!(after.bauwerke[0].sync_status, "synced");
+        });
+    }
+
+    #[test]
+    fn offline_rueckprallhammer_change_marks_bauwerk_unsynced() {
+        tauri::async_runtime::block_on(async {
+            let pool = SqlitePoolOptions::new().max_connections(1)
+                .connect_with(SqliteConnectOptions::new().in_memory(true))
+                .await.expect("test sqlite");
+            sqlx::migrate!("./migrations").run(&pool).await.expect("migrations");
+            let db = SqlxSqliteConnector::from_sqlx_sqlite_pool(pool);
+            bauwerk::ActiveModel {
+                id: Set(1), bezeichnung: Set("Demo".into()), archived: Set(false),
+                beschreibung: Set("".into()), strasse: Set("".into()),
+                bauweise: Set("Stahlbeton".into()), bauwerksnummer: Set("DEMO-01".into()),
+                bauwerkstyp: Set(None), bemerkung: Set(None),
+            }.insert(&db).await.expect("local Bauwerk");
+            record_baselines(&db, vec![remote(1, "Demo")]).await.unwrap();
+            let spec = crate::services::domain_service::resource("Rueckprallhammer").unwrap();
+            crate::repositories::domain_repository::import(&db, spec, vec![json!({
+                "id": 7, "version": 1, "datum": "2026-10-31", "bemerkung": "alt", "sort_order": 1,
+                "hammertyp": "N", "schlagrichtung": "horizontal", "bauwerk": 1,
+            })]).await.unwrap();
+            assert_eq!(snapshot(&db).await.unwrap().bauwerke[0].sync_status, "synced");
+
+            let mut row = crate::repositories::domain_repository::get(&db, spec, 7).await.unwrap();
+            row["bemerkung"] = json!("offline geändert");
+            crate::repositories::domain_repository::update(&db, spec, 7, row).await.unwrap();
+            assert_eq!(snapshot(&db).await.unwrap().bauwerke[0].sync_status, "unsynced");
+
+            // The sync reports a conflict: the Bauwerk shows "Konflikt", not "synchronisiert".
+            let sent = crate::repositories::sync_repository::take_pending(
+                &db, "bauwerksdiagnostik_rueckprallhammer").await.unwrap();
+            crate::repositories::sync_repository::apply_response(&db, spec, "CONFLICT", &json!({
+                "status": "CONFLICT", "saved": [],
+                "conflicts": [{"id": 7, "version": 2,
+                    "conflicts": [{"field": "bemerkung", "server_value": "vom Server"}]}]}), &sent)
+                .await.unwrap();
+            assert_eq!(snapshot(&db).await.unwrap().bauwerke[0].sync_status, "conflict");
         });
     }
 }

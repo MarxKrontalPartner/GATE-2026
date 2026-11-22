@@ -5,7 +5,7 @@ from django.db import models
 from core.assetverwaltung.models.assetverwaltung_models import BaseModel
 from core.bauwerksdiagnostik.models.algemein import Material, Media
 
-from .untersuchung import Bohrung
+from .untersuchung import UNTERSUCHUNG_EDITABLE, Bohrung
 
 
 class Kernbohrung(Bohrung):
@@ -20,6 +20,21 @@ class Kernbohrung(Bohrung):
     schichtaufbau = models.JSONField(blank=True, null=True)
     bewehrungAngeschnitten = models.BooleanField(blank=True, null=True)
     kernVollstaendig = models.BooleanField(blank=True, null=True)
+    # Incremented on every successful submit of the sync endpoint
+    version = models.PositiveIntegerField(default=1)
+
+    # Fields that may be changed via the sync endpoint (no M2M fields)
+    EDITABLE = UNTERSUCHUNG_EDITABLE + [
+        "durchmesser",
+        "bohrlaenge",
+        "neigungswinkel",
+        "kuehlung",
+        "verschlussmaterial",
+        "bohrkern",
+        "schichtaufbau",
+        "bewehrungAngeschnitten",
+        "kernVollstaendig",
+    ]
 
 
 class Bohrkern(BaseModel):

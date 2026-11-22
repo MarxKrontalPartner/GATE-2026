@@ -2,7 +2,7 @@
 
 from django.db import models
 
-from .untersuchung import VorOrtUntersuchung
+from .untersuchung import UNTERSUCHUNG_EDITABLE, VorOrtUntersuchung
 
 
 class Rissbreitenmessung(VorOrtUntersuchung):
@@ -21,6 +21,16 @@ class Rissbreitenmessung(VorOrtUntersuchung):
     risse = models.JSONField(blank=True, null=True)
     maxRissbreite = models.FloatField(blank=True, null=True)  # mm
     monitoringEmpfohlen = models.BooleanField(blank=True, null=True)
+    # Incremented on every successful submit of the sync endpoint
+    version = models.PositiveIntegerField(default=1)
+
+    # Fields that may be changed via the sync endpoint (no M2M fields)
+    EDITABLE = UNTERSUCHUNG_EDITABLE + [
+        "messmittel",
+        "risse",
+        "maxRissbreite",
+        "monitoringEmpfohlen",
+    ]
 
     def __str__(self):
         return f"Rissbreitenmessung {str(self.id)}"

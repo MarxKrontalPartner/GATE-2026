@@ -41,6 +41,9 @@
           </v-col>
         </v-row>
 
+        <SyncConflictNotice table="bauwerksdiagnostik_rissbreitenmessung" :record-id="currentUntersuchung.id"
+          :version="currentUntersuchung" />
+
       </v-container>
     </template>
   </GenericDetailView>
@@ -52,6 +55,7 @@ import { storeToRefs } from 'pinia';
 import GenericDetailView from '@/views/bwd/Untersuchungsverfahren/GenericDetailView.vue';
 import UntersuchungInfoCard from '@/components/bwd/UntersuchungInfoCard.vue';
 import ChoiceSelect, { type ChoiceOption } from '@/components/bwd/ChoiceSelect.vue';
+import SyncConflictNotice from '@/components/bwd/SyncConflictNotice.vue';
 import NumberField from '@/components/bwd/NumberField.vue';
 import RisseCard, { type RissItem } from '@/components/bwd/RisseCard.vue';
 

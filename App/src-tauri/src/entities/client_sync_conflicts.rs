@@ -1,5 +1,5 @@
-//! SeaORM entity for SQLite table `client_sync_conflicts`.
-//! Schema-derived from the GATE local SQL migrations.
+//! SeaORM entity for SQLite table `client_sync_conflicts` (migration 0008).
+//! One row per field the server reported as a conflict during a sync.
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
@@ -9,33 +9,16 @@ pub struct Model {
     pub conflict_id: String,
     pub entity_table: String,
     pub local_pk: String,
-    pub operation_id: Option<String>,
-    pub reason: String,
-    pub base_snapshot_json: Option<Json>,
-    pub local_snapshot_json: Json,
-    pub server_snapshot_json: Option<Json>,
+    pub column_name: String,
+    pub server_value: Json,
+    pub new_value: Json,
     pub server_revision: Option<String>,
     pub status: String,
-    pub resolution_json: Option<Json>,
     pub created_at: String,
-    pub resolved_at: Option<String>,
-    pub resolved_by: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::client_sync_outbox::Entity",
-        from = "Column::OperationId",
-        to = "super::client_sync_outbox::Column::OperationId"
-    )]
-    Operation,
-}
-
-impl Related<super::client_sync_outbox::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Operation.def()
-    }
 }
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -6,6 +6,8 @@ import App from './App.vue';
 import router from './router';
 
 import vuetify from './plugins/vuetify';
+import { isTauri } from '@tauri-apps/api/core';
+import { watchServer } from '@/services/connectivity';
 import "@/assets/base.css";
 import "@/assets/main.scss"; // must be imported after vuetify!
 
@@ -19,3 +21,9 @@ app.use(vuetify);
 
 app.use(router);
 app.mount('#app');
+
+// Desktop app: keep track of whether the server is reachable (online/offline mode).
+// Offline changes are sent only when the user clicks "Synchronisieren".
+if (isTauri()) {
+  watchServer();
+}

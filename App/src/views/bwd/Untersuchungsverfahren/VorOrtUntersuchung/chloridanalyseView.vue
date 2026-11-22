@@ -136,6 +136,9 @@
           </v-col>
         </v-row>
 
+        <SyncConflictNotice table="bauwerksdiagnostik_chloridanalyse" :record-id="currentUntersuchung.id"
+          :version="currentUntersuchung" />
+
       </v-container>
 
 
@@ -158,6 +161,7 @@ import { useProbe, type Probe } from '@/composables/bwd/useProbe';
 import MultiFileField from '@/components/bwd/MultiFileField.vue';
 import NumberField from '@/components/bwd/NumberField.vue';
 import ChoiceSelect, { type ChoiceOption } from '@/components/bwd/ChoiceSelect.vue';
+import SyncConflictNotice from '@/components/bwd/SyncConflictNotice.vue';
 import { apiConnector } from '@/utils/ApiConnector';
 
 // The Prüfbericht uploads send the bauwerk of the Untersuchung.
