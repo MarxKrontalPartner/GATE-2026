@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// These tests exercise pure grouping/validation logic, not API operations.
+vi.mock('@/utils/ApiConnector', () => ({
+  apiConnector: {},
+}));
+
 import { flattenStelleMethods } from '../../src/composables/bwd/stelleMethods';
 import { groupMethodsByStelle } from '../../src/composables/bwd/useWorkspaceStelleMethods';
 import { validateWorkspaceStelle } from '../../src/composables/bwd/useWorkspaceStelleCreate';
