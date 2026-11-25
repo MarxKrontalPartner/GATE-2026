@@ -55,17 +55,34 @@ export function isLoggedIn(): boolean {
   return read(REFRESH_KEY) !== null;
 }
 
+let refreshing: Promise<string | null> | null = null;
+
+/**
+ * Increases on every login and logout. A token refresh that started in an
+ * earlier session must not store its result: otherwise a refresh still running
+ * during logout would save new tokens and log the user back in.
+ */
+let session = 0;
+
+function startNewSession() {
+  session += 1;
+  refreshing = null; // a later 401 must not wait for the old session's refresh
+}
+
 export async function login(username: string, password: string): Promise<void> {
   const res = await postAuth('token/', { username, password });
   if (res.status === 401) throw new Error('Benutzername oder Passwort ist falsch.');
   if (res.status === 400) throw new Error('Bitte Benutzername und Passwort eingeben.');
   if (!res.ok) throw new Error(`Anmeldung fehlgeschlagen (HTTP ${res.status}).`);
-  store(await res.json());
+  const tokens: TokenPair = await res.json();
+  startNewSession();
+  store(tokens);
 }
 
 /** Ends the Keycloak session if the server is reachable; logs out locally in any case. */
 export async function logout(): Promise<void> {
   const refresh = read(REFRESH_KEY);
+  startNewSession();
   store(null);
   if (refresh) {
     try {
@@ -76,30 +93,37 @@ export async function logout(): Promise<void> {
   }
 }
 
-let refreshing: Promise<string | null> | null = null;
-
 /** New access token from the refresh token; null when the login has expired. */
 function refreshAccess(): Promise<string | null> {
-  refreshing ??= (async () => {
-    try {
-      const refresh = read(REFRESH_KEY);
-      if (!refresh) return null;
-      const res = await postAuth('token/refresh/', { refresh });
-      if (res.status === 401) {
-        store(null);
-        return null;
-      }
-      if (!res.ok) return null;
-      const tokens: TokenPair = await res.json();
-      store(tokens);
-      return tokens.access;
-    } catch {
-      return null; // offline: keep the tokens and try again later
-    } finally {
-      refreshing = null;
+  if (refreshing) return refreshing;
+  // Checked before the async part: returning early inside it would run `finally`
+  // before `refreshing` is assigned and leave a finished promise cached forever.
+  const refresh = read(REFRESH_KEY);
+  if (!refresh) return Promise.resolve(null);
+
+  const run = requestRefresh(refresh, session).finally(() => {
+    if (refreshing === run) refreshing = null;
+  });
+  refreshing = run;
+  return run;
+}
+
+async function requestRefresh(refresh: string, mine: number): Promise<string | null> {
+  try {
+    const res = await postAuth('token/refresh/', { refresh });
+    if (mine !== session) return null; // logged out (or in again) meanwhile
+    if (res.status === 401) {
+      store(null);
+      return null;
     }
-  })();
-  return refreshing;
+    if (!res.ok) return null;
+    const tokens: TokenPair = await res.json();
+    if (mine !== session) return null; // reading the body is async as well
+    store(tokens);
+    return tokens.access;
+  } catch {
+    return null; // offline: keep the tokens and try again later
+  }
 }
 
 function requestUrl(input: RequestInfo | URL): string {
