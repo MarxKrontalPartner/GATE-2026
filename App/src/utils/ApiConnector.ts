@@ -1172,6 +1172,7 @@ class ApiConnector {
       untersuchung: string,
       data: any,
     ): Promise<any> {
+      if (localMode() && id < 0) return updateLocal(untersuchung, id, data); // Unsynced offline create has no server ID yet.
       if (await writeLocal(getMethodApiName(untersuchung), 'update')) return updateLocal(untersuchung, id, data);
       const url = new URL(
         `api/bwd/Untersuchungsverfahren/${id}/`,

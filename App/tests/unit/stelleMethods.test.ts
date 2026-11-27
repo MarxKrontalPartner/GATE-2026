@@ -26,6 +26,16 @@ describe('Untersuchungsstelle detail data isolation', () => {
     expect(all.length).toBe(4);
   });
 
+  it('keeps temporary negative IDs for investigations created while offline', () => {
+    const methods = flattenStelleMethods({ VorOrtUntersuchung: {
+      Chloridanalyse: [
+        { id: -1, untersuchungsstelle: 3, datum: '2026-11-25' },
+        { id: 0, untersuchungsstelle: 3 },
+      ],
+    } });
+    expect(methodsForStelle(methods, 3).map(method => method.id)).toEqual([-1]);
+  });
+
   it('preserves method categories and completion states without inventing statuses', () => {
     const items = methodsForStelle(flattenStelleMethods(response), 3);
     expect(items.map(m => m.category)).toEqual([

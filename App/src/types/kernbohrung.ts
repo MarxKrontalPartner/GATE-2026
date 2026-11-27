@@ -1,3 +1,5 @@
+import type { InvestigationBasicsDraft } from './investigationBasics';
+
 /** UI-only draft: persistence remains in the existing Tauri/SeaORM layer. */
 export interface KernbohrungSchicht {
   id?: string;
@@ -6,14 +8,7 @@ export interface KernbohrungSchicht {
   tiefe_von: number | null;
   tiefe_bis: number | null;
 }
-export interface KernbohrungDraft {
-  datum: string;
-  zeit: string;
-  bemerkung: string;
-  lufttemperatur: number | null;
-  luftfeuchte: number | null;
-  abgeschlossen: boolean;
-  bearbeiter: number[];
+export interface KernbohrungDraft extends InvestigationBasicsDraft {
   durchmesser: number | null;
   bohrlaenge: number | null;
   neigungswinkel: number | null;

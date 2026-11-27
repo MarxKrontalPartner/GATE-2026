@@ -1,0 +1,24 @@
+.gate-chloridanalyse-page {
+  max-width: var(--gate-content-max-width);
+  .gate-page-header { margin-top: .9rem; }
+  .gate-page-header__actions { display: flex; flex-wrap: wrap; gap: .7rem; }
+  .gate-page-header__actions .gate-action-button { min-width: 150px; }
+  .v-field { min-height: var(--gate-touch-target); border-radius: var(--gate-control-radius); }
+  .v-field__input, .v-label { font-size: var(--gate-font-body); }
+  .v-checkbox .v-selection-control { min-height: 60px; }
+  .v-chip { font-size: .95rem; }
+  &__summary { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-bottom: 1.4rem; }
+  &__sections { display: grid; gap: 1.25rem; }
+  &__probe-card { margin-top: .8rem; border-radius: var(--gate-control-radius) !important;
+    .v-card-text { display: grid; gap: .4rem; font-size: 1rem; } }
+  &__footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+    gap: 1rem; padding: 1.7rem 0 3rem; }
+  &__footer-actions, &__dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .75rem; }
+}
+@media (max-width: 650px) {
+  .gate-chloridanalyse-page .gate-page-header__actions,
+  .gate-chloridanalyse-page__footer-actions { width: 100%; }
+  .gate-chloridanalyse-page .gate-page-header__actions .v-btn,
+  .gate-chloridanalyse-page__footer-actions .v-btn,
+  .gate-chloridanalyse-page__footer > .v-btn { width: 100%; }
+}

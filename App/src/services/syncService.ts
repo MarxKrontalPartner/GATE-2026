@@ -50,7 +50,24 @@ async function syncCreates(resource: string, headers: Record<string, string>): P
     await invoke('sync_apply_creates', { resource, localIds, status: 'FAILED', created: [], error });
     return -1;
   }
-  const created = await response.json();
+  // HTTP 201 alone is not proof that every offline record was created.
+  // The Rust acknowledgement is positional, so a partial/malformed response
+  // must leave all creates pending instead of reporting a false success.
+  let created: unknown;
+  try {
+    created = await response.json();
+  } catch {
+    const error = 'Server returned invalid JSON after creating records';
+    await invoke('sync_apply_creates', { resource, localIds, status: 'FAILED', created: [], error });
+    return -1;
+  }
+  if (!Array.isArray(created) || created.length !== localIds.length ||
+      created.some((row) => !row || typeof row !== 'object' ||
+        !Number.isSafeInteger(row.id) || row.id <= 0)) {
+    const error = 'Server returned an incomplete or invalid created-record list';
+    await invoke('sync_apply_creates', { resource, localIds, status: 'FAILED', created: [], error });
+    return -1;
+  }
   await invoke('sync_apply_creates', { resource, localIds, status: 'OK', created, error: null });
   return localIds.length;
 }
@@ -60,7 +77,13 @@ export async function syncResource(resource: string, headers: Record<string, str
   if (!isTauri()) return result;
   // 1. Records created offline, so later changes refer to their server ids.
   const created = await syncCreates(resource, headers);
-  if (created < 0) result.failed = true; else result.created = created;
+  if (created < 0) {
+    // Do not upload patches while offline-created parents may still have
+    // temporary IDs; let the next sync retry creation first.
+    result.failed = true;
+    return result;
+  }
+  result.created = created;
   // 2. Changes of existing records.
   const { endpoint, body } = await invoke<{ endpoint: string; body: unknown[] }>('sync_take_pending', { resource });
   result.sent = body.length;

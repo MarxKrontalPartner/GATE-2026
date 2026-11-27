@@ -97,7 +97,7 @@ const invalidRouteMessage = computed(() => {
 
     return 'Die angeforderte Untersuchung konnte nicht eindeutig bestimmt werden.'
 })
-const isRouteInvalid = computed(() => !Number.isFinite(id.value) || id.value <= 0 || !art.value || !rawUntersuchung.value)
+const isRouteInvalid = computed(() => !Number.isSafeInteger(id.value) || id.value === 0 || !art.value || !rawUntersuchung.value)
 
 const store = useUntersuchungenStore()
 const feedbackStore = useFeedbackStore()

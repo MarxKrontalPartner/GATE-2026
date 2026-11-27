@@ -1,4 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+// This test checks pure data grouping/validation, not API or authentication.
+// Prevent ApiConnector -> router -> Keycloak from initializing in Node.
+vi.mock('@/utils/ApiConnector', () => ({
+  apiConnector: {
+    postxResource: vi.fn(),
+    BWD: { fetchUvData: vi.fn() },
+  },
+}));
+
 import { flattenStelleMethods } from '../../src/composables/bwd/stelleMethods';
 import { groupMethodsByStelle } from '../../src/composables/bwd/useWorkspaceStelleMethods';
 import { validateWorkspaceStelle } from '../../src/composables/bwd/useWorkspaceStelleCreate';

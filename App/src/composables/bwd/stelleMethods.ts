@@ -22,7 +22,7 @@ export function flattenStelleMethods(grouped: GroupedStelleMethods): StelleMetho
         const id = Number(row.id);
         const stelleId = row.untersuchungsstelle === null || row.untersuchungsstelle === undefined
           ? null : Number(row.untersuchungsstelle);
-        if (!Number.isSafeInteger(id) || id <= 0) continue;
+        if (!Number.isSafeInteger(id) || id === 0) continue; // Negative IDs identify offline-created investigations.
         result.push({ id, type, category,
           untersuchungsstelle: Number.isSafeInteger(stelleId) && (stelleId as number) > 0 ? stelleId : null,
           datum: typeof row.datum === 'string' ? row.datum : null,

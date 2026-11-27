@@ -49,7 +49,7 @@
             </v-col>
           </v-row>
           <v-alert type="info" variant="tonal" class="mb-4">
-            Nach dem Anlegen können Sie die Messwerte, Schichten und Bohrkern-Angaben im Verfahren ergänzen.
+            Nach dem Anlegen können Sie die Messwerte und verfahrensspezifischen Angaben ergänzen.
             Die Daten werden auf diesem Gerät gespeichert.
           </v-alert>
           <v-alert v-if="error" type="error" variant="tonal" class="mb-3">{{ error }}</v-alert>
@@ -144,8 +144,8 @@ async function createUntersuchung() {
       datum: datum.value, zeit: zeit.value, bemerkung: bemerkung.value,
     });
     const created = await store.createUntersuchung(selectedArt, selectedMethod, payload);
-    if (!Number.isSafeInteger(Number(created?.id)) || Number(created.id) <= 0) {
-      throw new Error('Die Untersuchung wurde nicht mit einer gültigen ID zurückgegeben.');
+    if (!Number.isSafeInteger(Number(created?.id)) || Number(created.id) === 0) {
+      throw new Error('Die Untersuchung wurde nicht mit einer gültigen ID zurückgegeben (auch temporäre Offline-IDs sind erlaubt).');
     }
     showDialog.value = false;
     emit('created', { id: Number(created.id) }, selectedArt, selectedMethod);

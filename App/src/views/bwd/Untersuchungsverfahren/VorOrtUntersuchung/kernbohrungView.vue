@@ -24,7 +24,9 @@
     </v-alert>
 
     <div class="gate-kernbohrung-page__sections">
-      <InvestigationBasicsFields :draft="draft" :editing="editing" :people="people" />
+      <InvestigationBasicsFields :draft="draft" :editing="editing" :people="people"
+        :allow-personnel-edit="canEditPersonnel" :people-loading="loadingPeople"
+        :people-warning="peopleWarning" show-people-refresh @refresh-people="refreshPeople" />
       <KernbohrungDrillFields :draft="draft" :editing="editing" />
       <KernbohrungLayers :draft="draft" :editing="editing" />
       <GateFormSection title="Bohrkern" description="Zuordnung, Probenanzahl und Material des gewonnenen Kerns" :icon="mdiClipboardTextOutline">
@@ -44,10 +46,20 @@
           </v-row>
         </template>
         <template v-else-if="!loadingCore">
+          <v-alert v-if="coreCreationStatus === 'needs-sync'" type="warning" variant="tonal" class="mb-3">
+            Diese Kernbohrung ist lokal gespeichert (temporäre ID {{ currentUntersuchung.id }}), aber noch nicht mit dem Server synchronisiert.
+            Speichern Sie zuerst Ihre Messwerte. Synchronisieren Sie dann die Kernbohrung, und öffnen Sie sie erneut,
+            bevor Sie den Bohrkern anlegen. Die folgende Aktion synchronisiert alle ausstehenden Kernbohrungen auf diesem Gerät.
+            <div class="mt-3">
+              <GateActionButton intent="secondary" :loading="syncingCoreParent" :disabled="editing || syncingCoreParent || parentSynced"
+                @click="syncParentInvestigation">Kernbohrungen synchronisieren</GateActionButton>
+              <GateActionButton v-if="parentSynced" intent="quiet" @click="goBack">Zur Untersuchungsstelle</GateActionButton>
+            </div>
+          </v-alert>
           <div class="mb-3">Noch kein Bohrkern zugeordnet.
             <span v-if="!editing">Wählen Sie „Bearbeiten“, um einen Bohrkern anzulegen.</span>
           </div>
-          <template v-if="editing">
+          <template v-if="editing && coreCreationStatus !== 'needs-sync'">
             <v-row align="center">
               <v-col cols="12" sm="7">
                 <NumberField v-if="recoveryMode" v-model="recoveryCoreId" label="Bereits vorhandene Bohrkern-ID" integer min="1"
@@ -94,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { mdiArrowLeft, mdiPencil, mdiContentSaveAll, mdiClipboardTextOutline, mdiPlus, mdiDelete, mdiImage } from '@mdi/js';
@@ -109,8 +121,11 @@ import SyncConflictNotice from '@/components/bwd/SyncConflictNotice.vue';
 import UntersuchungsImageCard from '@/components/bwd/media/UntersuchungsImageCard.vue';
 import { useUntersuchungenStore } from '@/store/bwd/UntersuchungsverfahrenStore';
 import { apiConnector } from '@/utils/ApiConnector';
-import { localMode } from '@/repositories/localDomainRepository';
+import { getLocal, localMode } from '@/repositories/localDomainRepository';
 import { isServerOnline, OfflineWriteError } from '@/services/connectivity';
+import { loadPersonReferences } from '@/services/personReferenceData';
+import { syncResource } from '@/services/syncService';
+import { coreCreationState } from '@/utils/kernbohrungCoreWorkflow';
 import { getErrorMessage } from '@/utils/errors';
 import { kernbohrungPatch, toKernbohrungDraft, validateKernbohrungDraft, kernbohrungPersistenceDifferences } from '@/types/kernbohrung';
 import type { KernbohrungDraft } from '@/types/kernbohrung';
@@ -138,6 +153,27 @@ const newCoreName = ref('');
 const recoveryMode = ref(false);
 const recoveryCoreId = ref<number | null>(null);
 const people = ref<IPerson[]>([]);
+const loadingPeople = ref(false);
+const peopleWarning = ref('');
+const serverAvailableForPersonnel = ref(false);
+const syncingCoreParent = ref(false);
+const parentSynced = ref(false);
+const coreCreationStatus = computed(() => coreCreationState(currentUntersuchung.value?.id));
+const canEditPersonnel = computed(() => serverAvailableForPersonnel.value &&
+  coreCreationStatus.value === 'ready' && !peopleWarning.value && people.value.length > 0);
+async function refreshPeople() {
+  loadingPeople.value = true;
+  try {
+    const result = await loadPersonReferences();
+    people.value = result.people;
+    peopleWarning.value = result.warning;
+    serverAvailableForPersonnel.value = result.serverAvailable;
+  } catch (cause) {
+    peopleWarning.value = getErrorMessage(cause, 'Bearbeiter konnten nicht geladen werden.');
+    serverAvailableForPersonnel.value = false;
+  } finally { loadingPeople.value = false; }
+}
+onMounted(() => { void refreshPeople(); });
 const error = ref('');
 const success = ref('');
 let coreRequest = 0;
@@ -150,6 +186,7 @@ watch(() => currentUntersuchung.value, async record => {
   pendingCore.value = null;
   coreError.value = '';
   coreSuccess.value = '';
+  parentSynced.value = false;
   const request = ++coreRequest;
   const coreId = Number(record.bohrkern);
   if (!coreId) return;
@@ -165,8 +202,7 @@ watch(() => currentUntersuchung.value, async record => {
   } finally { if (request === coreRequest) loadingCore.value = false; }
 }, { immediate: true });
 
-// Dropdown values are loaded from the existing local-first API; no server is needed on tablets.
-apiConnector.getResourceList('Person').then(rows => { people.value = rows as IPerson[]; }).catch(() => { people.value = []; });
+
 function startEditing() {
   draft.value = toKernbohrungDraft(currentUntersuchung.value);
   coreBackup.value = core.value ? JSON.parse(JSON.stringify(core.value)) as Bohrkern : null;
@@ -174,6 +210,7 @@ function startEditing() {
   coreError.value = '';
   coreSuccess.value = '';
   editing.value = true;
+  void refreshPeople();
 }
 function cancelEditing() {
   draft.value = toKernbohrungDraft(currentUntersuchung.value);
@@ -197,6 +234,16 @@ async function saveChanges() {
   const message = validateKernbohrungDraft(draft.value);
   if (message) { error.value = message; return; }
   if (!Number.isSafeInteger(Number(currentUntersuchung.value.id))) return;
+  // Bearbeiter links are NOT in the field-level sync contract. Never save a
+  // changed link offline, where it could appear saved but never upload.
+  const oldBearbeiter = toKernbohrungDraft(currentUntersuchung.value).bearbeiter;
+  const changedBearbeiter = JSON.stringify([...draft.value.bearbeiter].sort()) !==
+    JSON.stringify([...oldBearbeiter].sort());
+  if (changedBearbeiter && localMode() &&
+      (Number(currentUntersuchung.value.id) < 0 || !(await isServerOnline(true)))) {
+    error.value = 'Bearbeiter-Zuordnungen benötigen eine synchronisierte Kernbohrung und eine Serververbindung.';
+    return;
+  }
   if (core.value && (core.value.anzahlProben !== null && (!Number.isInteger(Number(core.value.anzahlProben)) || Number(core.value.anzahlProben) < 0))) {
     error.value = 'Die Anzahl der Proben muss eine nicht negative ganze Zahl sein.'; return;
   }
@@ -232,11 +279,38 @@ async function saveChanges() {
     error.value = getErrorMessage(cause, 'Die Änderungen konnten nicht gespeichert werden.');
   } finally { saving.value = false; }
 }
+async function syncParentInvestigation() {
+  if (syncingCoreParent.value || editing.value || coreCreationStatus.value !== 'needs-sync') return;
+  const oldId = Number(currentUntersuchung.value.id);
+  syncingCoreParent.value = true;
+  coreError.value = '';
+  coreSuccess.value = '';
+  try {
+    if (!(await isServerOnline(true))) throw new Error('Der Django-Server ist nicht erreichbar. Die Kernbohrung bleibt lokal gespeichert.');
+    const result = await syncResource('Kernbohrung');
+    if (result.failed) throw new Error('Synchronisierung fehlgeschlagen. Bitte die Synchronisationsfehler prüfen und erneut versuchen.');
+    // The local record must be remapped from the temporary ID to a server ID.
+    let oldIdRemoved = false;
+    try { await getLocal('Kernbohrung', oldId); }
+    catch (cause) {
+      if (/not found/i.test(String(cause))) oldIdRemoved = true;
+      else throw cause;
+    }
+    if (!oldIdRemoved) throw new Error('Die temporäre ID wurde noch nicht ersetzt. Bitte Synchronisierung prüfen.');
+    parentSynced.value = true;
+    coreSuccess.value = 'Kernbohrung synchronisiert. Bitte zur Untersuchungsstelle zurückkehren und die Kernbohrung mit ihrer neuen ID öffnen, bevor Sie einen Bohrkern anlegen.';
+  } catch (cause) {
+    coreError.value = getErrorMessage(cause, 'Kernbohrung konnte nicht synchronisiert werden.');
+  } finally { syncingCoreParent.value = false; }
+}
 async function createCore() {
   if (!editing.value || creatingCore.value || saving.value) return;
   const investigationId = Number(currentUntersuchung.value.id);
-  if (!Number.isSafeInteger(investigationId) || investigationId <= 0) {
-    coreError.value = 'Bitte zuerst die Kernbohrung anlegen und öffnen.';
+  const status = coreCreationState(investigationId);
+  if (status !== 'ready') {
+    coreError.value = status === 'needs-sync'
+      ? 'Diese Kernbohrung hat noch eine temporäre Offline-ID. Bitte zuerst die Kernbohrung synchronisieren und neu öffnen.'
+      : 'Bitte zuerst die Kernbohrung speichern und öffnen.';
     return;
   }
   creatingCore.value = true;
